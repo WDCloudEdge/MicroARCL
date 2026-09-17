@@ -32,3 +32,6 @@ data/**/*
 
 # wandb
 wandb/
+
+*.svg
+论文*

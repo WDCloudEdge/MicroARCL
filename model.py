@@ -50,7 +50,7 @@ class EarlyStopping:
 # An Unsupervised Graph Neural Network Model Combining Failure Backpropagation and Topology Aggregation
 class UnsupervisedGNN(nn.Module):
     def __init__(self, center_map, anomaly_index, out_channels, hidden_size, graphs: Dict[str, HeteroWithGraphIndex],
-                 rnn: RnnType = RnnType.LSTM):
+                 rnn: RnnType = RnnType.LSTM, node_severity=None, severity_param=0.3):
         super(UnsupervisedGNN, self).__init__()
         graph = graphs[next(iter(graphs))]
         sorted_graphs = [graphs[time_sorted] for time_sorted in sorted(graphs.keys())]
@@ -61,7 +61,8 @@ class UnsupervisedGNN(nn.Module):
                                              node_feat_num=
                                              graph.hetero_graph.nodes[NodeType.NODE.value].data['feat'].shape[2],
                                              instance_feat_num=
-                                             graph.hetero_graph.nodes[NodeType.POD.value].data['feat'].shape[2])
+                                             graph.hetero_graph.nodes[NodeType.POD.value].data['feat'].shape[2],
+                                             node_severity=node_severity, severity_param=severity_param)
         self.epoch = 0
 
     def forward(self, graphs: Dict[str, HeteroWithGraphIndex]):
@@ -89,8 +90,13 @@ def train(config, label: str, root_cause: str, center_map: Dict[str, int], anoma
           graphs: Dict[str, HeteroWithGraphIndex],
           dir: str = '',
           is_train: TrainType = TrainType.EVAL,
-          learning_rate=0.01, rnn: RnnType = RnnType.LSTM):
-    model = UnsupervisedGNN(center_map, anomaly_index, out_channels=1, hidden_size=64, graphs=graphs, rnn=rnn)
+          learning_rate=0.01, rnn: RnnType = RnnType.LSTM,
+          return_ranking: bool = False, node_severity=None, severity_param=0.3):
+    # Module A (M1): toggle service-aware channel gating from config
+    import model_aggregate
+    model_aggregate.METRIC_GATE_ENABLE = getattr(config, 'metric_gate_enable', True)
+    model = UnsupervisedGNN(center_map, anomaly_index, out_channels=1, hidden_size=64, graphs=graphs, rnn=rnn,
+                            node_severity=node_severity, severity_param=severity_param)
     if torch.cuda.is_available():
         model = model.to('cpu')
     root_cause_file = label + '_' + rnn.value
@@ -126,6 +132,12 @@ def train(config, label: str, root_cause: str, center_map: Dict[str, int], anoma
                 if early_stopping.early_stop:
                     print(f"Early stopping with epoch: {epoch}, loss: {loss.item()}", file=output_file)
                     break
+            _final_loss = loss.item() if hasattr(loss, 'item') else float(loss)
+            _summary = (f"[GNN] unsupervised per-sample fit finished for '{label}': "
+                        f"epochs={epoch + 1}, final_loss={_final_loss:.6f}. "
+                        f"Ranking read from converged node logits.")
+            print(_summary, file=output_file)
+            print(_summary)
             torch.save(model.state_dict(), dir + '/' + model_file)
         elif is_train == TrainType.EVAL:
             model.load_state_dict(torch.load(dir + '/' + model_file))
@@ -151,4 +163,7 @@ def train(config, label: str, root_cause: str, center_map: Dict[str, int], anoma
                         else:
                             output_score_node[node] = score.item()
             sorted_dict_node = dict(sorted(output_score_node.items(), key=lambda item: item[1], reverse=True))
-            return top_k_node(sorted_dict_node, root_cause, output_file)
+            top_k = top_k_node(sorted_dict_node, root_cause, output_file)
+            if return_ranking:
+                return top_k, sorted_dict_node
+            return top_k

@@ -18,12 +18,40 @@ from model_attention import AttentionLayer
 from Config import RnnType
 
 
+# Module A (M1): toggle for the service-aware channel gating. train() sets it
+# from config.metric_gate_enable so it can be ablated.
+METRIC_GATE_ENABLE = True
+
+
+class MetricGate(nn.Module):
+    """A.3 service-aware channel gating. From the mask-aware temporal mean of a
+    node type's metrics, learn a per-channel gate (sigmoid) that reweights the
+    discriminative channels, applied with the sparse mask so inactive entries
+    stay zero. Shapes: x,m [N,T,C] -> [N,T,C]. Each node type owns its own gate
+    (heterogeneous / service-aware)."""
+
+    def __init__(self, feat_num):
+        super(MetricGate, self).__init__()
+        self.gate = nn.Linear(feat_num, feat_num)
+
+    def forward(self, x, m):
+        denom = m.sum(dim=1) + 1e-6            # [N, C]  active steps per channel
+        s = (x * m).sum(dim=1) / denom          # [N, C]  masked temporal mean
+        g = th.sigmoid(self.gate(s))            # [N, C]  channel gate in (0,1)
+        return x * g.unsqueeze(1) * m           # broadcast over T, keep sparse
+
+
 class AggrHGraphConvLayer(nn.Module):
     def __init__(self, out_channel, svc_feat_num, instance_feat_num, node_feat_num):
         super(AggrHGraphConvLayer, self).__init__()
         self.svc_feat_num = svc_feat_num
         self.instance_feat_num = instance_feat_num
         self.node_feat_num = node_feat_num
+        self.gate = nn.ModuleDict({
+            NodeType.SVC.value: MetricGate(svc_feat_num),
+            NodeType.POD.value: MetricGate(instance_feat_num),
+            NodeType.NODE.value: MetricGate(node_feat_num),
+        })
         self.conv = dglnn.HeteroGraphConv({
             EdgeType.SVC_CALL_EDGE.value: dglnn.GraphConv(self.svc_feat_num, out_channel),
             EdgeType.INSTANCE_NODE_EDGE.value: dglnn.GraphConv(self.instance_feat_num, out_channel),
@@ -37,7 +65,10 @@ class AggrHGraphConvLayer(nn.Module):
             self.conv = self.conv.to('cpu')
         self.activation = nn.ReLU()
 
-    def forward(self, graph: HeteroWithGraphIndex, feat_dict):
+    def forward(self, graph: HeteroWithGraphIndex, feat_dict, mask_dict=None):
+        # A.3: service-aware channel gating before graph convolution
+        if METRIC_GATE_ENABLE and mask_dict is not None:
+            feat_dict = {t: self.gate[t](feat_dict[t], mask_dict[t]) for t in feat_dict}
         dict = self.conv(graph.hetero_graph, feat_dict)
         node_feat = dict[NodeType.NODE.value]
         instance_feat = dict[NodeType.POD.value]
@@ -75,7 +106,15 @@ class AggrHGraphConvWindow(nn.Module):
             NodeType.POD.value: graph.hetero_graph.nodes[NodeType.POD.value].data[
                                     'feat'][:, :time_series, :],
         }
-        graph_time_series_feat = self.hGraph_conv_layer(graph, feat_dict)
+        # A.2 sparse mask aligned with feat_dict (falls back to feat!=0 if absent)
+        def _mask(nt):
+            data = graph.hetero_graph.nodes[nt].data
+            m = data['mask'] if 'mask' in data else (data['feat'] != 0).to(th.float32)
+            return m[:, :time_series, :]
+        mask_dict = {NodeType.NODE.value: _mask(NodeType.NODE.value),
+                     NodeType.SVC.value: _mask(NodeType.SVC.value),
+                     NodeType.POD.value: _mask(NodeType.POD.value)}
+        graph_time_series_feat = self.hGraph_conv_layer(graph, feat_dict, mask_dict)
         node_num = len(graph.hetero_graph_index.index[NodeType.NODE.value])
         instance_num = len(graph.hetero_graph_index.index[NodeType.POD.value])
         hetero_graph_feat_dict = {NodeType.NODE.value: graph_time_series_feat[:node_num],
@@ -231,8 +270,14 @@ class AggrHGraphConvWindows(nn.Module):
 class AggrUnsupervisedGNN(nn.Module):
     def __init__(self, sorted_graphs, center_map, anomaly_index, out_channels, hidden_size, svc_feat_num,
                  instance_feat_num, node_feat_num,
-                 rnn: RnnType = RnnType.LSTM):
+                 rnn: RnnType = RnnType.LSTM,
+                 node_severity=None, severity_param=0.3):
         super(AggrUnsupervisedGNN, self).__init__()
+        # B.3: severity-as-prior. When node_severity is provided, the bp target
+        # for every node becomes severity*coeff (coeff=1 if Birch-anomaly else
+        # severity_param); when empty, falls back to the original 0/1 target.
+        self.node_severity = node_severity or {}
+        self.severity_param = severity_param
         self.conv = AggrHGraphConvWindows(out_channel=out_channels, hidden_channel=hidden_size,
                                           svc_feat_num=svc_feat_num, instance_feat_num=instance_feat_num,
                                           node_feat_num=node_feat_num, rnn=rnn)
@@ -296,25 +341,51 @@ class AggrUnsupervisedGNN(nn.Module):
     def loss(self, aggr_feat, aggr_center_index, aggr_anomaly_index, window_graphs_index, window_time_series_sizes,
              window_anomaly_time_series):
         sum_criterion = 0
+        use_prior = bool(self.node_severity)
 
         for idx, anomaly_index_combine in enumerate(aggr_anomaly_index):
             aggr_feat_idx = aggr_feat[idx]
             graph_anomaly_center_nodes_weight = self.precessor_neighbor_node_weight[idx]
-            for anomaly in anomaly_index_combine:
-                if len(anomaly_index_combine[anomaly]) > 0:
-                    anomaly_graph_anomaly_center_nodes_weight = graph_anomaly_center_nodes_weight[anomaly]
-                    aggr_anomaly_nodes_index = anomaly_index_combine[anomaly]
-                    rate = 1
-                    aggr_feat_label_weight = torch.zeros_like(aggr_feat_idx)
-                    source_index_matrix = torch.tensor(aggr_anomaly_nodes_index['source'])
-                    aggr_feat_label_weight[source_index_matrix] = rate
-                    if 'neighbor' in aggr_anomaly_nodes_index:
-                        for center in aggr_anomaly_nodes_index['neighbor']:
-                            for ano_idx_idx, ano_idx in enumerate(aggr_anomaly_nodes_index['neighbor'][center]):
-                                center_node_weight = anomaly_graph_anomaly_center_nodes_weight[center]
-                                precessor_rate = 1 * center_node_weight()[ano_idx_idx]
-                                neighbor_index_matrix = torch.tensor(
-                                    aggr_anomaly_nodes_index['neighbor'][center][ano_idx_idx])
-                                aggr_feat_label_weight[neighbor_index_matrix] = precessor_rate
-                    sum_criterion += self.criterion(aggr_feat_idx, aggr_feat_label_weight)
+
+            if use_prior:
+                # B.3: one target per graph = severity * coeff for every node.
+                # base coeff = severity_param (normal); anomaly source coeff = 1;
+                # neighbors keep the learnable bp weight, scaled by severity.
+                sev = torch.zeros_like(aggr_feat_idx)
+                for name, pos in window_graphs_index[idx].items():
+                    sev[pos] = float(self.node_severity.get(name, 0.0))
+                target = self.severity_param * sev.clone()
+                for anomaly in anomaly_index_combine:
+                    if len(anomaly_index_combine[anomaly]) > 0:
+                        anomaly_w = graph_anomaly_center_nodes_weight[anomaly]
+                        aai = anomaly_index_combine[anomaly]
+                        source_index_matrix = torch.tensor(aai['source'])
+                        target[source_index_matrix] = sev[source_index_matrix]
+                        if 'neighbor' in aai:
+                            for center in aai['neighbor']:
+                                center_node_weight = anomaly_w[center]
+                                for ano_idx_idx in range(len(aai['neighbor'][center])):
+                                    neighbor_index_matrix = torch.tensor(aai['neighbor'][center][ano_idx_idx])
+                                    target[neighbor_index_matrix] = (
+                                        center_node_weight()[ano_idx_idx] * sev[neighbor_index_matrix])
+                sum_criterion += self.criterion(aggr_feat_idx, target)
+            else:
+                # original behavior (0 base, anomaly source = 1)
+                for anomaly in anomaly_index_combine:
+                    if len(anomaly_index_combine[anomaly]) > 0:
+                        anomaly_graph_anomaly_center_nodes_weight = graph_anomaly_center_nodes_weight[anomaly]
+                        aggr_anomaly_nodes_index = anomaly_index_combine[anomaly]
+                        rate = 1
+                        aggr_feat_label_weight = torch.zeros_like(aggr_feat_idx)
+                        source_index_matrix = torch.tensor(aggr_anomaly_nodes_index['source'])
+                        aggr_feat_label_weight[source_index_matrix] = rate
+                        if 'neighbor' in aggr_anomaly_nodes_index:
+                            for center in aggr_anomaly_nodes_index['neighbor']:
+                                for ano_idx_idx, ano_idx in enumerate(aggr_anomaly_nodes_index['neighbor'][center]):
+                                    center_node_weight = anomaly_graph_anomaly_center_nodes_weight[center]
+                                    precessor_rate = 1 * center_node_weight()[ano_idx_idx]
+                                    neighbor_index_matrix = torch.tensor(
+                                        aggr_anomaly_nodes_index['neighbor'][center][ano_idx_idx])
+                                    aggr_feat_label_weight[neighbor_index_matrix] = precessor_rate
+                        sum_criterion += self.criterion(aggr_feat_idx, aggr_feat_label_weight)
         return sum_criterion
