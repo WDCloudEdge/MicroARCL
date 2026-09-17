@@ -116,11 +116,18 @@ def combine_ns_graphs(graphs_time_window: Dict[str, nx.DiGraph]) -> Dict[str, nx
     return graphs_combine
 
 
-def graph_weight_ns(begin_time, end_time, graph: nx.DiGraph, dir, namespace):
+def graph_weight_ns(begin_time, end_time, graph: nx.DiGraph, dir, namespace, lag_map=None):
     print('weight graph ns')
     ns_dir = dir + '/' + namespace + '/metrics'
-    instance_df = util.df_time_limit_normalization(pd.read_csv(ns_dir + '/instance.csv'), begin_time, end_time)
-    svc_df = util.df_time_limit_normalization(pd.read_csv(ns_dir + '/latency.csv'), begin_time, end_time)
+    instance_raw = pd.read_csv(ns_dir + '/instance.csv')
+    svc_raw = pd.read_csv(ns_dir + '/latency.csv')
+    # B.1: align lagged metrics onto the QPS/causal timeline before featurizing
+    if lag_map:
+        from lag_align import align_metrics_df
+        instance_raw = align_metrics_df(instance_raw, lag_map)
+        svc_raw = align_metrics_df(svc_raw, lag_map)
+    instance_df = util.df_time_limit_normalization(instance_raw, begin_time, end_time)
+    svc_df = util.df_time_limit_normalization(svc_raw, begin_time, end_time)
 
     for node in graph.nodes:
         if graph.nodes[node]['type'] == NodeType.POD.value:
@@ -218,6 +225,9 @@ def get_hg(graphs: Dict[str, nx.DiGraph], graphs_index: Dict[str, GraphIndex], a
         graph_anomaly_time_series_index = graphs_anomaly_time_series_index[time_change_window]
         anomaly_node = get_anomaly_time_window(anomaly_nodes, time_change_window)
 
+        if anomaly_node is None:
+            continue
+
         class NodeIndex:
             def __init__(self, name, index):
                 self.name = name
@@ -308,16 +318,25 @@ def get_hg(graphs: Dict[str, nx.DiGraph], graphs_index: Dict[str, GraphIndex], a
                 if 'feat' not in _hg.nodes[type].data:
                     feat_zeros = th.zeros((_hg.number_of_nodes(type), graph.nodes[node_index.name]['data'].shape[0],
                                            graph.nodes[node_index.name]['data'].shape[1]), dtype=th.float32)
+                    # A.2 sparse mask: 1 = active/observed, 0 = missing/inactive.
+                    # Missing nodes stay all-zero (mask=0); filled/absent values
+                    # (0 after fillna in graph_weight*) are treated as inactive.
+                    mask_zeros = th.zeros_like(feat_zeros)
                     if th.cuda.is_available():
                         _hg.nodes[type].data['feat'] = feat_zeros.to('cpu')
+                        _hg.nodes[type].data['mask'] = mask_zeros.to('cpu')
                     else:
                         _hg.nodes[type].data['feat'] = feat_zeros
+                        _hg.nodes[type].data['mask'] = mask_zeros
                 feat_data = th.tensor(graph.nodes[node_index.name]['data'].values,
                                       dtype=th.float32)
+                mask_data = (feat_data != 0).to(th.float32)
                 if th.cuda.is_available():
                     _hg.nodes[type].data['feat'][node_index.index] = feat_data.to('cpu')
+                    _hg.nodes[type].data['mask'][node_index.index] = mask_data.to('cpu')
                 else:
                     _hg.nodes[type].data['feat'][node_index.index] = feat_data
+                    _hg.nodes[type].data['mask'][node_index.index] = mask_data
         center_subgraph: Dict[str, DGLHeteroGraph] = {}
         for center in center_index:
             center_type_list = center_index[center]
@@ -397,6 +416,9 @@ def get_anomaly_time_window(anomalies, graph_time_window):
     for time_window in anomalies:
         if graph_time_window.split('-')[0] >= time_window.split('-')[0] and graph_time_window.split('-')[1] <= \
                 time_window.split('-')[1]:
+            return anomalies[time_window]
+    if len(anomalies) == 1:
+        for time_window in anomalies:
             return anomalies[time_window]
     return None
 
