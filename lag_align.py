@@ -7,9 +7,11 @@ lag that varies by service / load / deployment (motivation Fig. m2.1: CPU lag
 a failure's manifestations across different timestamps. We therefore estimate a
 per-(service, kind) lag by cross-correlating QPS against each resource metric,
 then shift the lagged metrics back onto the QPS/causal timeline. The aligned
-matrix is what feeds Birch (B.2) and the GNN feature construction.
+matrix feeds adaptive-window detection, severity ranking, Birch (B.2), and the
+GNN feature construction.
 
-success_rate is NOT aligned here (it only drives the adaptive window, B.0).
+success_rate is NOT aligned here; it remains a downstream signal contributing
+to the adaptive window alongside aligned latency and resource metrics.
 Physical-node metrics (node.csv) are left unaligned in v1 (node aggregates many
 services, so a single QPS reference is ill-defined).
 """
@@ -123,6 +125,33 @@ def align_metrics_df(df: pd.DataFrame, lag_map: Dict[Tuple[str, str], int]) -> p
         if svc is None:
             continue
         tau = _lag_for(lag_map, svc, kind)
+        if tau > 0:
+            out[col] = df[col].shift(-tau)
+    return out
+
+
+def align_call_metrics_df(
+        df: pd.DataFrame,
+        lag_map: Dict[Tuple[str, str], int]) -> pd.DataFrame:
+    """Align ``call.csv`` latency columns by the callee service's lag.
+
+    Call columns use ``<caller>_<callee>&pXX`` rather than the service-level
+    ``<service>&pXX`` convention handled by :func:`align_metrics_df`. The
+    observed latency is therefore shifted using the callee's latency lag.
+    """
+    if not lag_map:
+        return df
+    out = df.copy()
+    for col in df.columns:
+        if col == 'timestamp' or '&' not in col:
+            continue
+        call, percentile = col.split('&', 1)
+        if percentile not in ('p50', 'p90', 'p99') or '_' not in call:
+            continue
+        # In the collected metric schema service names use '-' internally;
+        # '_' is the caller/callee delimiter.
+        callee = call.rsplit('_', 1)[1]
+        tau = _lag_for(lag_map, callee, 'latency')
         if tau > 0:
             out[col] = df[col].shift(-tau)
     return out

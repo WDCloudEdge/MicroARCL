@@ -2,6 +2,7 @@ from sklearn import preprocessing
 import pandas as pd
 from datetime import datetime
 import pytz
+import re
 
 
 def ip_2_subnet(ip: str, net_mask: int):
@@ -82,17 +83,23 @@ def df_time_limit_normalization(df, begin_timestamp, end_timestamp):
     return normalize_dataframe(df_time_limit(df, begin_timestamp, end_timestamp).fillna(0))
 
 
-def top_k_node(sorted_dict_node, root_cause, output_file):
+def top_k_node(sorted_dict_node, root_cause, output_file,
+               rank_label='top_k'):
+    # A service-level ground truth matches either its exact service node or a
+    # deployment pod belonging to that service. Avoid substring matching such
+    # as root_cause="agent", which incorrectly matches every agent node.
+    pod_suffix = re.compile(r'-[0-9a-z]{6,10}-[0-9a-z]{5}$')
     top_k = 0
-    is_top_k = False
-    for key, value in list(sorted_dict_node.items()):
-        if not is_top_k:
-            top_k += 1
+    found = False
+    for rank, (key, value) in enumerate(sorted_dict_node.items(), start=1):
         print(f"{key}: {value}", file=output_file)
-        if ('edge' in root_cause and 'edge' in key and (key in root_cause or root_cause in key)) or ('edge' not in root_cause and 'edge' not in key and (key in root_cause or root_cause in key)):
-            is_top_k = True
-    print(f"top_k: {top_k}", file=output_file)
-    print(f"root_cause: {root_cause}, top_k: {top_k}")
+        normalized_key = pod_suffix.sub('', key)
+        if root_cause and (key == root_cause or normalized_key == root_cause):
+            if not found:
+                top_k = rank
+                found = True
+    print(f"{rank_label}: {top_k}", file=output_file)
+    print(f"root_cause: {root_cause}, {rank_label}: {top_k}")
     return top_k
 
 

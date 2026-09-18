@@ -181,6 +181,7 @@ class AggrHGraphConvWindows(nn.Module):
         self.linear = nn.Linear(self.hidden_size, self.out_size)
         self.output_layer = nn.Softmax(dim=0)
         self.activation = nn.ReLU()
+        self.center_gate = nn.Sigmoid()
         self.pooling = HeteroGlobalAttentionPooling(gate_nn=nn.Linear(self.hidden_size, hidden_channel))
         self.center_attention = AttentionLayer(hidden_channel, hidden_channel, num_heads=1)
 
@@ -256,15 +257,24 @@ class AggrHGraphConvWindows(nn.Module):
                 center_nodes_index = []
                 for _, nodes_index in graph_center_node_index[center].items():
                     center_nodes_index.extend(nodes_index)
-                attention_scores_after_center[sorted(center_nodes_index)] = th.max(attention_scores[sorted(center_nodes_index)] * self.activation(aggr_feat_weighted[i]), dim=1)[0].unsqueeze(-1)
+                # Both factors are probabilities/gates in [0,1]. ReLU here
+                # used to leave the center weight unbounded, allowing node
+                # anomaly scores to grow above one during fitting.
+                center_weight = self.center_gate(aggr_feat_weighted[i])
+                attention_scores_after_center[sorted(center_nodes_index)] = th.max(
+                    attention_scores[sorted(center_nodes_index)] * center_weight,
+                    dim=1)[0].unsqueeze(-1)
             atten_sorted.append(attention_scores_after_center)
             window_graphs_center_node_index.append(graph_center_node_index)
             window_graphs_anomaly_node_index.append(graphs_anomaly_node_index)
         output = self.activation(self.linear(self.rnn_layer(th.stack(output_data_list, dim=0))[0]))
         output = output.reshape(output.shape[0], -1)
         graphs_probability = self.output_layer(torch.sum(output, dim=1, keepdim=True))
-        return [graphs_probability[g_index] * atten_sorted[g_index] for g_index in range(
-            len(atten_sorted))], window_graphs_center_node_index, window_graphs_anomaly_node_index, window_graphs_index, window_time_series_sizes, window_anomaly_time_series
+        bounded_scores = [
+            (graphs_probability[g_index] * atten_sorted[g_index]).clamp(0.0, 1.0)
+            for g_index in range(len(atten_sorted))
+        ]
+        return bounded_scores, window_graphs_center_node_index, window_graphs_anomaly_node_index, window_graphs_index, window_time_series_sizes, window_anomaly_time_series
 
 
 class AggrUnsupervisedGNN(nn.Module):
@@ -315,7 +325,9 @@ class AggrUnsupervisedGNN(nn.Module):
                 self.param = nn.Parameter(th.ones(size, requires_grad=True, device=device))
 
             def forward(self):
-                return self.param
+                # Learn a propagation probability rather than an unbounded
+                # multiplier. Existing checkpoints remain state-dict compatible.
+                return th.sigmoid(self.param)
 
         self.precessor_neighbor_node_weight = nn.ModuleList()
         for graph_anomaly_nodess in self.graphs_anomaly_center_nodes:
@@ -353,7 +365,8 @@ class AggrUnsupervisedGNN(nn.Module):
                 # neighbors keep the learnable bp weight, scaled by severity.
                 sev = torch.zeros_like(aggr_feat_idx)
                 for name, pos in window_graphs_index[idx].items():
-                    sev[pos] = float(self.node_severity.get(name, 0.0))
+                    sev[pos] = min(1.0, max(
+                        0.0, float(self.node_severity.get(name, 0.0))))
                 target = self.severity_param * sev.clone()
                 for anomaly in anomaly_index_combine:
                     if len(anomaly_index_combine[anomaly]) > 0:
@@ -368,6 +381,7 @@ class AggrUnsupervisedGNN(nn.Module):
                                     neighbor_index_matrix = torch.tensor(aai['neighbor'][center][ano_idx_idx])
                                     target[neighbor_index_matrix] = (
                                         center_node_weight()[ano_idx_idx] * sev[neighbor_index_matrix])
+                target = target.clamp(0.0, 1.0)
                 sum_criterion += self.criterion(aggr_feat_idx, target)
             else:
                 # original behavior (0 base, anomaly source = 1)
@@ -387,5 +401,7 @@ class AggrUnsupervisedGNN(nn.Module):
                                     neighbor_index_matrix = torch.tensor(
                                         aggr_anomaly_nodes_index['neighbor'][center][ano_idx_idx])
                                     aggr_feat_label_weight[neighbor_index_matrix] = precessor_rate
+                        aggr_feat_label_weight = aggr_feat_label_weight.clamp(
+                            0.0, 1.0)
                         sum_criterion += self.criterion(aggr_feat_idx, aggr_feat_label_weight)
         return sum_criterion

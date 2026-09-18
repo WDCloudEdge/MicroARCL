@@ -196,22 +196,36 @@ def _build_node_severity(graphs_combine: Dict[str, nx.DiGraph],
 def gnn_rank(config, base_dir: str, start_ts: int, end_ts: int,
              namespace: str = 'agent-network',
              label: str = 'agent', is_train: TrainType = TrainType.TRAIN,
-             severity_map: Dict[str, float] = None) -> Dict[str, float]:
+             severity_map: Dict[str, float] = None,
+             evaluation_root_cause: Optional[str] = None,
+             lag_map: Optional[Dict[Tuple[str, str], int]] = None
+             ) -> Dict[str, float]:
     """Run the heterogeneous GNN root-cause ranker over [start_ts, end_ts].
     Returns {node_name: score} sorted desc, or {} if the topology is empty."""
     ns = namespace
     ns_dir = os.path.join(base_dir, ns)
     metrics_dir = os.path.join(ns_dir, 'metrics')
+    if evaluation_root_cause is None:
+        # Benchmark-only evaluation metadata. This value is passed solely to
+        # top_k_node after inference and never affects model fitting/ranking.
+        sample_name = os.path.basename(os.path.normpath(base_dir))
+        services = sorted(_read_services(metrics_dir), key=len, reverse=True)
+        evaluation_root_cause = next(
+            (service for service in services
+             if sample_name == service or sample_name.startswith(service + '_')),
+            '')
+    print('[agent_gnn] evaluation root cause: '
+          f'{evaluation_root_cause or "unavailable"}')
 
-    # B.1: estimate per-(service,kind) QPS->resource lags once; feed aligned
-    # metrics to both Birch and the GNN feature construction.
-    lag_map = {}
-    if getattr(config, 'lag_enable', False):
+    # B.1: reuse the pipeline-wide lag map. Direct callers that do not provide
+    # one retain the old estimate-on-entry fallback.
+    if lag_map is None and getattr(config, 'lag_enable', False):
         from lag_align import compute_service_lags
         lag_map = compute_service_lags(metrics_dir, config)
-        if lag_map:
-            nz = {k: v for k, v in lag_map.items() if v > 0}
-            print(f'[agent_gnn] estimated lags (non-zero): {nz}')
+    lag_map = lag_map or {}
+    if lag_map:
+        nz = {k: v for k, v in lag_map.items() if v > 0}
+        print(f'[agent_gnn] using shared lags (non-zero): {nz}')
 
     graphs_ts = build_graphs(ns_dir)
 
@@ -325,7 +339,8 @@ def gnn_rank(config, base_dir: str, start_ts: int, end_ts: int,
         node_severity = _build_node_severity(graphs_combine, severity_map or {})
         try:
             _, sorted_dict_node = train(
-                config, tw, 'agent', center_map, anomaly_index, hetero_graphs,
+                config, tw, evaluation_root_cause, center_map, anomaly_index,
+                hetero_graphs,
                 base_dir, is_train, rnn=config.rnn_type, return_ranking=True,
                 node_severity=node_severity,
                 severity_param=getattr(config, 'severity_prior_param', 0.3))

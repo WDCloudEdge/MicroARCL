@@ -210,6 +210,8 @@ def llm_localize(agg: Dict, cfg) -> Dict:
         result['_mode'] = 'llm'
         return result
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f'[llm_localize] API/parse failed ({e}); falling back to rule-based.')
         res = rule_based_localize(agg)
         res['_mode'] = 'rule_based_after_error'
