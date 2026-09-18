@@ -3,9 +3,8 @@ Initial end-to-end driver for agent-service root cause localization.
 
 Pipeline (v1, single `agent-network` namespace, label-free):
   1. Load service KPIs (success_rate / latency / qps) for one sample.
-  2. Module B.0: label-free adaptive anomaly window (first significant
-     failure onset -> last recovery), main criteria = success_rate + latency,
-     qps auxiliary.
+  2. Module B.0: label-free adaptive anomaly window from success rate plus
+     lag-aligned latency and resource signals.
   3. Coarse ranking: rank anomalous services by failure severity within the
      window (placeholder for the GNN ranker; interface-compatible).
   4. Module C: pull execution-graph slices for the top-k services, aggregate
@@ -20,6 +19,7 @@ Run:  .venv/bin/python run_agent_rca.py
 import os
 import re
 import json
+import time
 import numpy as np
 import pandas as pd
 
@@ -27,6 +27,7 @@ from Config import Config
 from execution_graph import (load_execution_graphs, aggregate_topk_slices,
                              build_log_evidence, graph_failed_for_services)
 from llm_localize import llm_localize
+from lag_align import align_metrics_df, compute_service_lags
 
 
 def _svc_of(col: str) -> str:
@@ -120,15 +121,16 @@ def _sustained_baseline_deviation(x, baseline, cfg, direction='upper',
     return _sustain_mask(mask, getattr(cfg, 'win_seg_min_len', 2))
 
 
-def _resource_active_ts(metrics_dir, cfg):
-    """Timestamps where any service's CPU/mem usage robustly spikes
-    (the LEADING resource-fault signal, from svc_metric.csv)."""
+def _resource_active_ts(metrics_dir, cfg, lag_map=None):
+    """Causal-timeline timestamps with a sustained CPU/memory spike."""
     p = os.path.join(metrics_dir, 'svc_metric.csv')
     if not os.path.exists(p):
         return None
     df = pd.read_csv(p)
     if 'timestamp' not in df.columns:
         return None
+    if lag_map:
+        df = align_metrics_df(df, lag_map)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     active = pd.Series(False, index=df.index)
     for c in df.columns:
@@ -138,24 +140,40 @@ def _resource_active_ts(metrics_dir, cfg):
     return set(df['timestamp'][active])
 
 
-def adaptive_window(sr: pd.DataFrame, cfg, metrics_dir=None):
+def _latency_active_ts(lat, cfg):
+    """Timestamps with a sustained aligned service-latency spike."""
+    active = pd.Series(False, index=lat.index)
+    for c in lat.columns:
+        if c.endswith('&p50'):
+            active = active | _series_spike(lat[c])
+    active = pd.Series(
+        _sustain_mask(active, getattr(cfg, 'win_seg_min_len', 2)),
+        index=lat.index)
+    return set(lat.loc[active, 'timestamp'])
+
+
+def adaptive_window(sr: pd.DataFrame, cfg, metrics_dir=None, latency=None,
+                    lag_map=None):
     """Module B.0 (label-free): outer anomaly window.
 
-    success_rate is a LAGGED, downstream signal (for a resource fault the
-    faulted service's success_rate may never drop, and any victim's drop comes
-    minutes later). So the window is the UNION of the lagging success_rate
-    anomaly and the LEADING CPU/mem resource spike, ensuring it covers the whole
-    failure episode regardless of metric lag.
+    The window is the union of raw success-rate failures and aligned latency /
+    CPU / memory spikes. This puts every lagged metric on the same causal
+    timeline later consumed by severity and the GNN.
     """
     svc_cols = [c for c in sr.columns if c != 'timestamp']
     fail_ind = (sr[svc_cols] < 1.0).sum(axis=1)          # count of failing svcs
     active_ts = list(sr['timestamp'][fail_ind > 0])
     src = 'success_rate'
+    if latency is not None:
+        lat_ts = _latency_active_ts(latency, cfg)
+        if lat_ts:
+            active_ts += list(lat_ts)
+            src += ' ∪ aligned_latency'
     if metrics_dir is not None:
-        res_ts = _resource_active_ts(metrics_dir, cfg)
+        res_ts = _resource_active_ts(metrics_dir, cfg, lag_map=lag_map)
         if res_ts:
             active_ts += list(res_ts)
-            src = 'success_rate ∪ resource(cpu/mem)'
+            src += ' ∪ aligned_resource(cpu/mem)'
     if not active_ts:
         return sr['timestamp'].iloc[0], sr['timestamp'].iloc[-1], fail_ind
     guard = pd.Timedelta(seconds=cfg.win_guard)
@@ -166,7 +184,7 @@ def adaptive_window(sr: pd.DataFrame, cfg, metrics_dir=None):
     return start, end, fail_ind
 
 
-def _resource_severity_map(metrics_dir, start, end, cfg):
+def _resource_severity_map(metrics_dir, start, end, cfg, lag_map=None):
     """Per-service resource-deviation term from svc_metric cpu/mem within the
     window. The baseline is learned outside the window (preferably before it),
     so a long resource fault cannot become its own normal baseline. Only a
@@ -178,6 +196,8 @@ def _resource_severity_map(metrics_dir, start, end, cfg):
     df = pd.read_csv(p)
     if 'timestamp' not in df.columns:
         return out
+    if lag_map:
+        df = align_metrics_df(df, lag_map)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
     w = df.loc[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
     for c in df.columns:
@@ -209,11 +229,13 @@ def _resource_severity_map(metrics_dir, start, end, cfg):
     return out
 
 
-def rank_anomalous_services(sr, lat, qps, start, end, metrics_dir=None, cfg=None):
+def rank_anomalous_services(sr, lat, qps, start, end, metrics_dir=None,
+                            cfg=None, lag_map=None):
     """Coarse severity ranking within [start, end].
 
     Every KPI is compared with an out-of-window baseline, preferring history
-    before ``start``. severity = availability deviation + normalized latency
+    before ``start``. ``lat`` and resource metrics are expected on the shared
+    aligned timeline. severity = availability deviation + normalized latency
     spike + resource deviation + QPS deviation. Returns
     list[(svc, sev, detail)].
     """
@@ -262,7 +284,9 @@ def rank_anomalous_services(sr, lat, qps, start, end, metrics_dir=None, cfg=None
             np.maximum(anomalous.abs(), abs(base_med)), 1e-9)
         qps_dev[_svc_of(c)] = float(magnitudes.max())
 
-    res_map = _resource_severity_map(metrics_dir, start, end, cfg) if metrics_dir else {}
+    res_map = (_resource_severity_map(
+        metrics_dir, start, end, cfg, lag_map=lag_map)
+        if metrics_dir else {})
 
     # success_rate stats per service
     sr_stats = {}
@@ -341,7 +365,8 @@ def _node_to_service(node: str) -> str:
     return re.sub(r'-[0-9a-z]{6,10}-[0-9a-z]{5}$', '', node)
 
 
-def run_gnn_ranker(cfg, ns_dir, base_dir, start, end, severity_map=None):
+def run_gnn_ranker(cfg, ns_dir, base_dir, start, end, severity_map=None,
+                   lag_map=None):
     """Run the optional heterogeneous GNN ranker. Returns
     (node_ranking: dict, service_topk: list) or (None, None) if unavailable."""
     try:
@@ -358,7 +383,7 @@ def run_gnn_ranker(cfg, ns_dir, base_dir, start, end, severity_map=None):
     try:
         node_ranking = gnn_rank(cfg, base_dir, start_ts, end_ts,
                                 namespace=cfg.agent_namespace, is_train=tt,
-                                severity_map=severity_map)
+                                severity_map=severity_map, lag_map=lag_map)
     except Exception as e:
         import traceback
         print(f'\n[GNN ranker] failed: {e}')
@@ -388,7 +413,54 @@ def _services_from_gnn_topk(gnn_svc_order, all_anomalous, k):
     return ordered[:k]
 
 
+def _infer_evaluation_root_cause(sample, services):
+    """Infer benchmark ground truth from the sample directory name.
+
+    This is evaluation-only metadata and is never fed into detection, ranking,
+    candidate selection, or the LLM prompt.
+    """
+    sample_name = os.path.basename(os.path.normpath(sample))
+    candidates = sorted(set(services), key=len, reverse=True)
+    return next((svc for svc in candidates
+                 if sample_name == svc or sample_name.startswith(svc + '_')),
+                None)
+
+
+def _service_rank(order, target):
+    """One-based rank after normalizing/deduplicating service names; 0=miss."""
+    if not target:
+        return 0
+    seen = []
+    for item in order or []:
+        service = _node_to_service(str(item))
+        if service not in seen:
+            seen.append(service)
+    return seen.index(target) + 1 if target in seen else 0
+
+
+def _write_sample_timing_log(sample, gnn_log_path, timestamp,
+                             timing_seconds):
+    """Persist completed-sample timings immediately in the sample directory."""
+    if gnn_log_path and os.path.exists(gnn_log_path):
+        log_path = gnn_log_path
+    else:
+        log_path = os.path.join(sample, f'sample-agent_rca_{timestamp}.log')
+    from datetime import datetime
+    with open(log_path, 'a', encoding='utf-8') as sample_log:
+        print('\n===== Agent RCA stage timing =====', file=sample_log)
+        print(f'sample: {sample}', file=sample_log)
+        print(f'completed_at: '
+              f'{datetime.now().astimezone().isoformat(timespec="seconds")}',
+              file=sample_log)
+        for stage in ('severity', 'gnn', 'llm', 'total'):
+            print(f'{stage}: {timing_seconds.get(stage, 0.0):.3f}s',
+                  file=sample_log)
+    return log_path
+
+
 def main(sample_dir=None):
+    total_started = time.perf_counter()
+    timing_seconds = {}
     cfg = Config()
     if sample_dir:
         cfg.agent_sample_dir = sample_dir
@@ -398,16 +470,32 @@ def main(sample_dir=None):
     print(f'== Sample: {sample}')
     print(f'== Namespace dir: {ns_dir}')
 
+    severity_started = time.perf_counter()
     # ---- Step 1: load KPIs ----
     sr, lat, qps = load_kpi(metrics_dir)
+    lag_map = {}
+    if getattr(cfg, 'lag_enable', False):
+        lag_map = compute_service_lags(metrics_dir, cfg)
+        if lag_map:
+            nz = {k: v for k, v in lag_map.items() if v > 0}
+            print(f'[B.1] estimated lags (non-zero): {nz}')
+    aligned_lat = align_metrics_df(lat, lag_map) if lag_map else lat
+    metric_services = [c for c in sr.columns if c != 'timestamp']
+    evaluation_root_cause = _infer_evaluation_root_cause(
+        sample, metric_services)
 
     # ---- Step 2: adaptive window (B.0) ----
-    start, end, fail_ind = adaptive_window(sr, cfg, metrics_dir=metrics_dir)
+    start, end, fail_ind = adaptive_window(
+        sr, cfg, metrics_dir=metrics_dir, latency=aligned_lat,
+        lag_map=lag_map)
     print(f'\n[B.0] Adaptive anomaly window: {start} -> {end} '
           f'(peak failing services={int(fail_ind.max())})')
 
     # ---- Step 3: coarse ranking ----
-    ranking = rank_anomalous_services(sr, lat, qps, start, end, metrics_dir=metrics_dir, cfg=cfg)
+    ranking = rank_anomalous_services(
+        sr, aligned_lat, qps, start, end, metrics_dir=metrics_dir, cfg=cfg,
+        lag_map=lag_map)
+    timing_seconds['severity'] = time.perf_counter() - severity_started
     print(f'\n[Coarse ranking - severity] {len(ranking)} anomalous services:')
     for svc, sev, det in ranking[:max(cfg.llm_topk, 5)]:
         print(f'  {svc:32s} severity={sev:.3f} {det}')
@@ -415,13 +503,15 @@ def main(sample_dir=None):
     all_anomalous = [svc for svc, _, _ in ranking]
 
     # ---- Step 3b: GNN ranker (optional, side-by-side comparison) ----
+    gnn_started = time.perf_counter()
     gnn_ranking = None
     gnn_topk = None
     if getattr(cfg, 'gnn_enable', False):
         severity_map = {svc: sev for svc, sev, _ in ranking}
         gnn_ranking, gnn_topk = run_gnn_ranker(cfg, ns_dir, base_dir=sample,
                                                start=start, end=end,
-                                               severity_map=severity_map)
+                                               severity_map=severity_map,
+                                               lag_map=lag_map)
 
     # choose which coarse ranking feeds Module C
     if gnn_topk and getattr(cfg, 'gnn_feed_module_c', False):
@@ -460,8 +550,10 @@ def main(sample_dir=None):
         }
         for svc in topk_services
     }
+    timing_seconds['gnn'] = time.perf_counter() - gnn_started
 
     # ---- Step 4: Module C - execution-graph + log driven LLM localization ----
+    llm_started = time.perf_counter()
     # Keep every Module-C evidence source aligned with the same coarse
     # root-cause candidates.  In particular, do not let lower-ranked anomalous
     # services introduce unrelated traces/log signatures into the LLM prompt.
@@ -513,9 +605,33 @@ def main(sample_dir=None):
               f"across {ss['num_services']} services {ss['services']} "
               f"(log occurrences={ss['log_occurrences']})")
     result = llm_localize(agg, cfg)
+    timing_seconds['llm'] = time.perf_counter() - llm_started
 
     print('\n===== Fine-grained localization result =====')
     print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    # Comparable service-level evaluation ranks from all three stages.
+    llm_service_order = result.get('reranked_topk') or []
+    evaluation_top_k = {
+        'root_cause': evaluation_root_cause,
+        'gnn_top_k': _service_rank(gnn_service_order, evaluation_root_cause),
+        'severity_top_k': _service_rank(
+            [svc for svc, _, _ in ranking], evaluation_root_cause),
+        'llm_top_k': _service_rank(llm_service_order, evaluation_root_cause),
+    }
+    evaluation_line = (
+        'root_cause: {root_cause}, gnn_top_k: {gnn_top_k}, '
+        'severity_top_k: {severity_top_k}, llm_top_k: {llm_top_k}'
+    ).format(**evaluation_top_k)
+    print('\n===== Three-stage top-k evaluation =====')
+    print(evaluation_line)
+    gnn_log_path = getattr(cfg, 'last_gnn_log_path', None)
+    if gnn_log_path and os.path.exists(gnn_log_path):
+        with open(gnn_log_path, 'a', encoding='utf-8') as gnn_log:
+            print(evaluation_line, file=gnn_log)
+        evaluation_top_k['gnn_run_log'] = gnn_log_path
+        evaluation_top_k['gnn_model'] = getattr(
+            cfg, 'last_gnn_model_path', None)
 
     out = {
         'sample': sample,
@@ -531,13 +647,30 @@ def main(sample_dir=None):
         'module_c_anomaly_type_union': anomaly_type_union,
         'aggregated_evidence': agg,
         'fine_grained_result': result,
+        'evaluation_top_k': evaluation_top_k,
     }
     from datetime import datetime
     timestamp = datetime.now().strftime('%Y%m%d-%H.%M.%S')
+    agg_path = os.path.join(sample, f'aggregated-evidence_{timestamp}.json')
+    with open(agg_path, 'w', encoding='utf-8') as f:
+        json.dump(agg, f, ensure_ascii=False, indent=2)
     out_path = os.path.join(sample, f'result-agent_rca_{timestamp}.json')
     with open(out_path, 'w', encoding='utf-8') as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
-    print(f'\nWritten: {out_path}')
+    print(f'\nWritten aggregated evidence: {agg_path}')
+    print(f'Written result: {out_path}')
+    timing_seconds['total'] = time.perf_counter() - total_started
+    out['timing_seconds'] = timing_seconds
+    out['result_path'] = out_path
+    out['aggregated_evidence_path'] = agg_path
+    sample_log_path = _write_sample_timing_log(
+        sample, gnn_log_path, timestamp, timing_seconds)
+    out['sample_log_path'] = sample_log_path
+    print('Timing (seconds): ' + ', '.join(
+        f'{stage}={seconds:.3f}'
+        for stage, seconds in timing_seconds.items()))
+    print(f'Sample timing written: {sample_log_path}')
+    return out
 
 
 if __name__ == '__main__':

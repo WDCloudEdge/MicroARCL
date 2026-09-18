@@ -11,12 +11,14 @@ def get_anomaly_by_df(config, base_dir, file_dir, label, begin_timestamp, end_ti
     anomalies = []
     anomaly_time_series = {}
     # B.1: align lagged metrics onto the QPS/causal timeline before Birch
-    from lag_align import align_metrics_df
+    from lag_align import align_call_metrics_df, align_metrics_df
 
     def _al(df):
         return align_metrics_df(df, lag_map) if lag_map else df
     # read call latency data
-    call_data = _al(pd.read_csv(file_dir + '/' + 'call.csv'))
+    call_data = pd.read_csv(file_dir + '/' + 'call.csv')
+    if lag_map:
+        call_data = align_call_metrics_df(call_data, lag_map)
     anomaly_svc_calls, anomaly_call_time_series_index = anomaly_detection_with_smoothing(
         df_time_limit(call_data, begin_timestamp, end_timestamp), masks=['p50', 'p99'], threshold=config.anomaly_threshold)
     anomaly_time_series_index_combine = {}

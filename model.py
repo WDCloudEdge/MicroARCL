@@ -2,6 +2,9 @@ import torch
 import torch as th
 import torch.nn as nn
 import torch.optim as optim
+import glob
+import os
+from datetime import datetime
 from graph import HeteroWithGraphIndex, NodeType
 from typing import Dict
 from model_aggregate import AggrUnsupervisedGNN
@@ -11,8 +14,48 @@ from torch.optim.lr_scheduler import StepLR
 from util.utils import top_k_node
 
 
+def _artifact_paths(output_dir, label, rnn):
+    """Return unique, paired log/model paths for one train invocation."""
+    run_timestamp = datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
+    stem = f'{label}_{rnn.value}_{run_timestamp}'
+    return (os.path.join(output_dir, f'result-{stem}.log'),
+            os.path.join(output_dir, f'model_weights_{stem}.pth'))
+
+
+def _latest_model_path(output_dir, label, rnn):
+    """Find the newest timestamped model, falling back to the legacy name."""
+    pattern = os.path.join(
+        output_dir, f'model_weights_{label}_{rnn.value}_*.pth')
+    candidates = glob.glob(pattern)
+    legacy = os.path.join(
+        output_dir, f'model_weights_{label}_{rnn.value}.pth')
+    if os.path.exists(legacy):
+        candidates.append(legacy)
+    if not candidates:
+        raise FileNotFoundError(
+            f'No model weights found for {label}_{rnn.value} in {output_dir}')
+    return max(candidates, key=os.path.getmtime)
+
+
+def _aggregate_node_scores(output_list, window_graphs_index):
+    """Average bounded scores across windows/checkpoints for each node."""
+    samples = {}
+    for aggr_feat_list in output_list:
+        for idx, window_graph_index in enumerate(window_graphs_index):
+            output = th.max(aggr_feat_list[idx], dim=1)[0]
+            reverse_index = {position: node
+                             for node, position in window_graph_index.items()}
+            for position, score in enumerate(output):
+                node = reverse_index[position]
+                samples.setdefault(node, []).append(float(score.item()))
+    return {
+        node: min(1.0, max(0.0, sum(values) / len(values)))
+        for node, values in samples.items()
+    }
+
+
 class EarlyStopping:
-    def __init__(self, patience_output=5, patience=5, delta=1e-6, max_loss=5, min_epoch=500):
+    def __init__(self, patience_output=5, patience=5, delta=1e-8, max_loss=5, min_epoch=500):
         self.patience = patience
         self.patience_output = patience_output
         self.delta = delta
@@ -99,17 +142,23 @@ def train(config, label: str, root_cause: str, center_map: Dict[str, int], anoma
                             node_severity=node_severity, severity_param=severity_param)
     if torch.cuda.is_available():
         model = model.to('cpu')
-    root_cause_file = label + '_' + rnn.value
-    model_file = 'model_weights' + '_' + label + '_' + rnn.value + '.pth'
-    root_cause = root_cause
-    with open(dir + '/result-' + root_cause_file + '.log', "a") as output_file:
+    log_path, model_path = _artifact_paths(dir, label, rnn)
+    # Expose paired artifacts to the end-to-end driver so it can append the
+    # severity/LLM evaluation after those stages finish.
+    config.last_gnn_log_path = log_path
+    config.last_gnn_model_path = model_path
+    with open(log_path, "w") as output_file:
+        print(f"run_log: {log_path}", file=output_file)
+        print(f"run_model: {model_path}", file=output_file)
         print(f"root_cause: {root_cause}", file=output_file)
-        early_stopping = EarlyStopping(patience_output=4, patience=config.patience, delta=config.delta, min_epoch=config.min_epoch)
+        early_stopping = EarlyStopping(patience_output=5, patience=config.patience, delta=config.delta, min_epoch=config.min_epoch)
         if is_train == TrainType.TRAIN or is_train == TrainType.TRAIN_CHECKPOINT:
             if is_train == TrainType.TRAIN:
                 model.initialize_weights()
             elif is_train == TrainType.TRAIN_CHECKPOINT:
-                model.load_state_dict(torch.load(dir + '/' + model_file))
+                load_path = _latest_model_path(dir, label, rnn)
+                print(f"checkpoint_model: {load_path}", file=output_file)
+                model.load_state_dict(torch.load(load_path))
             optimizer = optim.Adam(model.parameters(), lr=learning_rate)
             scheduler = StepLR(optimizer, step_size=200, gamma=0.5)
             for epoch in range(model.epoch, 1000, 1):
@@ -138,9 +187,11 @@ def train(config, label: str, root_cause: str, center_map: Dict[str, int], anoma
                         f"Ranking read from converged node logits.")
             print(_summary, file=output_file)
             print(_summary)
-            torch.save(model.state_dict(), dir + '/' + model_file)
+            torch.save(model.state_dict(), model_path)
         elif is_train == TrainType.EVAL:
-            model.load_state_dict(torch.load(dir + '/' + model_file))
+            load_path = _latest_model_path(dir, label, rnn)
+            print(f"eval_model: {load_path}", file=output_file)
+            model.load_state_dict(torch.load(load_path))
         with th.no_grad():
             model.eval()
             aggr_feat_list, aggr_center_index, aggr_anomaly_index, window_graphs_index, window_time_series_sizes, window_anomaly_time_series = model(
@@ -150,20 +201,11 @@ def train(config, label: str, root_cause: str, center_map: Dict[str, int], anoma
                 output_list.append(aggr_feat_list)
             elif is_train == TrainType.EVAL:
                 output_list = [aggr_feat_list]
-            output_score_node = {}
-            for aggr_feat_list in output_list:
-                for idx, window_graph_index in enumerate(window_graphs_index):
-                    output = th.max(aggr_feat_list[idx], dim=1)[0]
-                    window_graph_index_reverse = {window_graph_index[key]: key for key in window_graph_index}
-                    for idx, score in enumerate(output):
-                        node = window_graph_index_reverse[idx]
-                        s = output_score_node.get(node, 0)
-                        if s != 0:
-                            output_score_node[node] = s + score.item()
-                        else:
-                            output_score_node[node] = score.item()
+            output_score_node = _aggregate_node_scores(
+                output_list, window_graphs_index)
             sorted_dict_node = dict(sorted(output_score_node.items(), key=lambda item: item[1], reverse=True))
-            top_k = top_k_node(sorted_dict_node, root_cause, output_file)
+            top_k = top_k_node(sorted_dict_node, root_cause, output_file,
+                               rank_label='gnn_node_top_k')
             if return_ranking:
                 return top_k, sorted_dict_node
             return top_k
