@@ -1,124 +1,58 @@
-# MicroCERCL
+# MicroARCL
 
-[中文文档](README_zh.md)
+**Root Cause Localization for Microservice-based Agent Systems**
 
-## Benchmark
+[中文](README_zh.md) · English
 
-We build a hybrid-deployed benchmark in the cloud-edge environment, which contains four widely used microservice systems. These systems are adapted for hybrid deployment and integrated into a unified monitoring framework.
-Please click here for the details of the [Benchmark](benchmark/README.md).
+MicroARCL is an unsupervised root cause localization method for microservice-based agent systems. This repository accompanies the paper *Root Cause Localization for Microservice-based Agent Systems*, which also introduces **MicroASBench**, a benchmark for studying failures in deployable agent services.
 
-## Description
+## Paper overview
 
-**MicroCERCL** constructs a heterogeneous dynamic topology stack based on metric data, after anomaly detection, it trains a graph neural network model to accurately localize the root cause without relying on historical data in the cloud-edge environment.
+Agent services invoke different tools and other services for different requests. Their execution paths are dynamic, observations are sparse and heterogeneous, and stages finish asynchronously. During a failure, shared load changes and delays along a request path can make affected services look more suspicious than the actual root cause. The paper characterizes these behaviors with MicroASBench and develops MicroARCL to rank root-cause services from monitoring data and real request paths, without historical failure labels, model training, or manually supplied failure windows.
 
-## Quick Start
+## MicroASBench benchmark
 
-### Requirement
+MicroASBench combines deployable agent services, configurable workloads and replica settings, controlled failure injection, and aligned observations with root-cause labels for evaluation.
 
-+ Python3.7 is recommended. Otherwise, any python3 version should be fine.
+- **Systems:** 13 services in MDOC, a multimodal document assistant, and 9 services in MAR, adapted from MARBLE. They run alongside 81 conventional microservices in separate namespaces.
+- **Workloads:** simple and composed agent tasks with request-dependent service activation; failure experiments use 3 or 5 concurrent users and single- or multi-replica deployments.
+- **Faults:** CPU stress, memory stress, network delay, pod failure, and pod kill. The paper reports 240 failure runs across MDOC and MAR.
+- **Observations:** service, instance, and node metrics sampled every 5 seconds, container logs, and request-level execution graphs. The graphs preserve service order, stage duration, tool invocations, and other agent-execution details. Failure labels are used for evaluation, not localization.
 
-+ Git
+### Dataset
 
-### Setup
+The dataset release information will be added here.
 
-```shell
-git clone https://github.com/WDCloudEdge/MicroCERCL.git
-cd MicroCERCL
-python3.7 -m pip install -r requirements.txt
-```
+| Item | MDOC | MAR |
+| --- | --- | --- |
+| Download | To be added | To be added |
+| Data format and schema | To be added | To be added |
+| Preparation instructions | To be added | To be added |
 
-### Running MicroCERCL
+## MicroARCL framework
 
-#### Config
+MicroARCL takes telemetry and request-level execution paths as input and returns a ranked list of root-cause services:
 
-Change the dataset and other configs in `Config.py`
+1. **Agent-aware candidate detection.** Align metric response lag with service QPS, infer an adaptive anomaly window, and use BIRCH with request gating and sparsity-aware confidence to retrieve likely root-cause candidates.
+2. **Reliability-weighted metric voters.** Compare each candidate's failure rate, latency, CPU, memory, network, and QPS with its own normal prefix. Weight each voter by the strength and concentration of its evidence, reducing the influence of weak or shared changes across services.
+3. **Request-level lag correction.** Use observed request paths to estimate delay accumulated at downstream services. Discount evidence explained by this lag and rerank the candidates.
 
-#### Execute
+## Main experimental results
 
-```shell
-python3.7 ./main.py
-```
+The paper evaluates MicroARCL against five unsupervised root cause localization baselines. On the two MicroASBench agent-service datasets, it reports:
 
-## Dataset
+| Dataset | MicroARCL ACC@1 | Strongest baseline ACC@1 | MicroARCL MRR | Mean localization time |
+| --- | ---: | ---: | ---: | ---: |
+| MDOC | 0.500 | 0.333 (MicroRCA) | 0.634 | 5.314 s |
+| MAR | 0.492 | 0.283 (MicroRCA) | 0.680 | 0.648 s |
+| Average across MDOC and MAR | **0.496** | **0.308** | **0.657** | — |
 
-### Download
+The average ACC@1 gain over the strongest baseline is **18.8 percentage points**. Ablation results show that candidate detection, reliability weighting, and request-level lag correction each contribute to accuracy. The paper also evaluates conventional microservice datasets (SockShop, Online Boutique, and TrainTicket), where MicroARCL achieves ACC@1 scores of 0.978, 0.833, and 0.456, respectively.
 
-[Dropbox](https://www.dropbox.com/scl/fi/lw4xlw9b2rlhaa1ds0bju/abnormal_20240615.zip?rlkey=yuomecjids9qa54029755bjzo&st=qsrs7wfc&dl=0)
+## Future research
 
-### Description
-
-It contains three folders corresponding to Bookinfo, Hipster, and SockShop, where the root cause is located within a hybrid deployment scenario. Each folder is further split into secondary folders based on the root cause of the microservice (or its instances). Each root cause service folder contains label information (xxx_label.txt) for all failures injected. Within each service, it is split into third-level folders according to the label file to form a failure sample. Each failure sample contains all hybrid-deployed microservice systems that form the fourth-level folders. Each hybrid-deployed microservice system folder contains three types of monitoring data: metrics, traces, and logs (Bookinfo without logs in each failure sample).
-As shown in figure:
-
-<img width="310" alt="image" src="image/1.png">
-
-### Failure Sample
-
-It contains all the monitoring data of hybrid-deployed microservice systems when a failure occurs.
-As shown in figure:
-
-<img width="324" alt="image" src="image/2.png">
-
-### Details
-
-#### Metrics
-
-<img width="193" alt="image" src="image/3.png">
-
-| File             | Description                                                                                                                                                                                                             |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| call.csv         | Time-series call latency between microservices, including P99, P95, and P90, which denote the 99th, 95th, and 90th percentiles of the latency data.                                                                     |
-| graph.csv        | Time-series topologies contain the instance, the server where it is located, and the service call relationship.                                                                                                         |
-| instance.csv     | Time-series metrics of each instance, containing CPU usage, memory usage, and network transmit packets.                                                                                                                 |
-| latency.csv      | The time-series latency of microservices, including P99, P95, and P90, which denote the 99th, 95th, and 90th percentiles of the latency data.                                                                           |
-| resource.csv     | Time-series metrics of instances within a specific namespace, containing the total CPU usage and memory usage                                                                                                           |
-| success_rate.csv | Microservice Success Rate Time Series Data                                                                                                                                                                              |
-| svc_metric.csv   | Time-series metrics of microservices (the average of its instances), containing CPU usage, CPU limit, memory usage, memory limit, FS write, FS read, FS usage, net receive, net transmit, and network transmit packets. |
-| svc_qps.csv      | Microservice QPS (Queries Per Second) Time Series Data                                                                                                                                                                  |
-
-#### Traces
-
-<img width="217" alt="image" src="image/4.png">
-
-| File                  | Description                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| abnormal.pkl          | Records data with missing structure, abnormal status code and error messages, excluding data with abnormal net latency. |
-| abnormal_half.pkl     | For the namespace where the file is located, records data after eliminating other namespace service information from the Trace data based on *abnormal.pkl* (only this namespace service information is included) |
-| inbound.pkl           | For the namespace where the file is located, record data containing service calls from other namespaces to this namespace. |
-| inbound_half.pkl      | For the namespace where the file is located, records data after eliminating other namespace service information from the Trace data based on *inbound.pkl* (only this namespace service information is included) |
-| normal.pkl            | Records data with complete structure and normal status code, including data with abnormal net latency. |
-| outbound.pkl          | For the namespace where the file is located, record data containing service calls from this namespace to other namespaces. |
-| outbound_half.pkl     | For the namespace where the file is located, records data after eliminating other namespace service information from the Trace data based on *outbound.pkl* (only this namespace service information is included) |
-| trace_net_latency.pkl | Statistics on request latency data and response latency data between a pair of service calls |
-| trace_pod_latency.pkl | Statistics on latency data between sending a request and receiving a response between a pair of service calls. |
-
-#### Logs
-
-Each instance (container) has a .pkl file, containing all business logs of the container.
-
-<img width="301" alt="image" src="image/5.png">
-
-## Project Structure
-
-```textile
-McroCERCL/
-│├── .gitignore
-│├── Config.py
-│├── MetricCollector.py
-│├── README.md
-│├── anomaly_detection.py
-│├── graph.py
-│├── main.py
-│├── model.py
-│├── model_aggregate.py
-│├── model_attention.py
-│├── requirements.txt
-│└── util/
-│└── │├── KubernetesClient.py
-│└── │├── PrometheusClient.py
-│└── │└── utils.py
-```
+The paper identifies broader evaluation as the next step: extend MicroASBench with more agent applications and agent-specific fault types, and test localization on production failures.
 
 ## License
 
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+This repository is licensed under the [Apache License 2.0](LICENSE).

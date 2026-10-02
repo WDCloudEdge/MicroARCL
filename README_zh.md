@@ -1,122 +1,58 @@
-# MicroCERCL
+# MicroARCL
 
-## 基准(benchmark)
+**面向微服务化 Agent 系统的故障根因定位**
 
-我们在云边缘环境中构建了一个混合部署基准，其中包含四个广泛使用的微服务系统。这些系统被混合部署，并集成到一个统一的监控框架中。
-请点击这里查看[Benchmark](benchmark/README.md)详情。
+中文 · [English](README.md)
 
-## 简介
+MicroARCL 是一种面向微服务化 Agent 系统的无监督故障根因定位方法。本仓库对应论文 *Root Cause Localization for Microservice-based Agent Systems*。论文同时提出 **MicroASBench**，用于研究Agent 服务中的故障。
 
-**MicroCERCL**构建了异构动态拓扑堆栈，在异常检测完成后，基于指标Metrics数据训练图神经网络模型，从而在不依赖历史数据的情况下在云边环境中准确定位微服务的故障根因。
+## 论文简介
 
-## 快速开始
+Agent 服务会根据不同请求调用不同工具和服务，因此执行路径动态变化，观测数据稀疏且异构，各阶段也会异步完成。发生故障时，共享负载变化以及沿请求路径累积的延迟，可能让受影响的下游服务看起来比真正的根因更可疑。论文通过 MicroASBench 分析这些特征，并提出 MicroARCL，利用监控数据和真实请求路径对根因服务排序；定位过程无需历史故障标签、模型训练，也无需人工提供故障时间窗口。
 
-### 前置需要
+## MicroASBench 基准
 
-+ 推荐使用Python3.7，其他Python3也可以兼容
+MicroASBench 将可部署的 Agent 服务、可配置的工作负载与副本设置、受控故障注入，以及带有评估标签的对齐观测数据结合起来。
 
-+ Git
+- **系统：**MDOC 多模态文档助手包含 13 个服务；由 MARBLE 改造的 MAR 包含 9 个服务。它们与 81 个传统微服务在独立命名空间中共同运行。
+- **工作负载：**包含简单任务和组合任务，服务激活取决于具体请求；故障实验采用 3 或 5 个并发用户，以及单副本或多副本部署。
+- **故障：**CPU 压力、内存压力、网络延迟、Pod 故障和 Pod 删除。论文报告了 MDOC 与 MAR 共 240 次故障运行。
+- **观测数据：**每 5 秒采样的服务、实例和节点指标，容器日志，以及请求级执行图。执行图保留服务顺序、阶段耗时、工具调用等 Agent 执行细节。故障标签仅用于评估，不参与定位。
 
-### 配置
+### 数据集
 
-```shell
-git clone https://github.com/WDCloudEdge/MicroCERCL.git
-cd MicroCERCL
-python3.7 -m pip install -r requirements.txt
-```
+数据集发布信息将在此补充。
 
-### 启动MicroCERCL
+| 项目 | MDOC | MAR |
+| --- | --- | --- |
+| 下载地址 | 待补充 | 待补充 |
+| 数据格式与字段说明 | 待补充 | 待补充 |
+| 数据准备说明 | 待补充 | 待补充 |
 
-#### 参数配置
+## MicroARCL 框架
 
-Change the dataset and other configs in `Config.py`
+MicroARCL 以监控数据和请求级执行路径为输入，输出根因服务排序：
 
-#### 执行
+1. **Agent 感知的候选检测。**将指标响应相对服务 QPS 的延迟对齐，自适应确定异常时间窗口，再结合 BIRCH、请求活跃门控和稀疏性感知置信度筛选候选根因服务。
+2. **可靠性加权的指标投票。**将候选服务的故障率、延迟、CPU、内存、网络和 QPS 与该服务自身的正常前缀比较，并根据证据强度及其在候选服务间的集中程度确定权重，降低弱证据和跨服务共同变化的影响。
+3. **请求级延迟校正。**根据真实请求路径估计下游服务累积的延迟，扣减可由这种延迟解释的证据，再对候选服务重新排序。
 
-```shell
-python3.7 ./main.py
-```
+## 核心实验结果
 
-## 数据集
+论文将 MicroARCL 与五种无监督故障根因定位基线比较。在 MicroASBench 的两个 Agent 服务数据集上，结果如下：
 
-### 下载链接
+| 数据集 | MicroARCL ACC@1 | 最强基线 ACC@1 | MicroARCL MRR | 平均定位耗时 |
+| --- | ---: | ---: | ---: | ---: |
+| MDOC | 0.500 | 0.333（MicroRCA） | 0.634 | 5.314 秒 |
+| MAR | 0.492 | 0.283（MicroRCA） | 0.680 | 0.648 秒 |
+| MDOC 与 MAR 平均 | **0.496** | **0.308** | **0.657** | — |
 
-[Dropbox](https://www.dropbox.com/scl/fi/lw4xlw9b2rlhaa1ds0bju/abnormal_20240615.zip?rlkey=yuomecjids9qa54029755bjzo&st=qsrs7wfc&dl=0)
+相较最强基线，平均 ACC@1 **提高 18.8 个百分点**。消融实验表明，候选检测、可靠性加权和请求级延迟校正都对定位准确率有贡献。论文还在传统微服务数据集 SockShop、Online Boutique 和 TrainTicket 上评估了 MicroARCL，其 ACC@1 分别为 0.978、0.833 和 0.456。
 
-### 数据集描述
+## 未来研究方向
 
-包含三个文件夹，分别对应混合部署场景中故障根因所在的 Bookinfo、Hipster 和 SockShop系统。根据不同的微服务（或其实例）故障原因，每个文件夹被进一步拆分为二级文件夹。每个根因服务文件夹都包含注入的所有故障的标签信息（xxx_label.txt）。在每个服务中，根据标签文件将其拆分为三级文件夹，形成故障样本。每个故障样本包含所有混合部署的微服务系统数据，构成第四级文件夹。每个混合部署的微服务系统文件夹包含三种类型的监控数据：指标、跟踪和日志（ Bookinfo中的每个故障样本不含日志数据）。
-如图所示:
+论文计划扩展 MicroASBench，加入更多 Agent 应用和 Agent 特有的故障类型，并在生产环境故障上进一步评估根因定位效果。
 
-<img width="310" alt="image" src="image/1.png">
+## 许可证
 
-### 故障样本
-
-当发生故障时，一个故障样本包含混合部署的微服务系统的所有监控数据。
-如图所示:
-
-<img width="324" alt="image" src="image/2.png">
-
-### 数据细节
-
-#### Metrics
-
-<img width="193" alt="image" src="image/3.png">
-
-| File             | Description                                                                         |
-| ---------------- | ----------------------------------------------------------------------------------- |
-| call.csv         | 微服务之间的时间序列调用延迟，包含P99、P95 和 P90，分别代表延迟数据的第 99、95 和 90 百分位数。                          |
-| graph.csv        | 时间序列拓扑包含实例、实例所在的服务器和服务调用关系。                                                         |
-| instance.csv     | 每个实例的时间序列指标，包括 CPU 使用量、内存使用量和网络传输包。                                                 |
-| latency.csv      | 微服务的时序延迟，包含P99、P95 和 P90，分别代表延迟数据的第 99、95 和 90 百分位数。                                |
-| resource.csv     | 特定命名空间内实例的时间序列指标数据，包括 CPU 使用总量和内存使用总量                                               |
-| success_rate.csv | 微服务成功率时序数据                                                                          |
-| svc_metric.csv   | 微服务的时间序列指标数据（其实例的平均值），包含 CPU 使用率、CPU 限制、内存使用率、内存限制、FS 写入、FS 读取、FS 使用率、网络接收、网络发送数据包。 |
-| svc_qps.csv      | 微服务qps时序数据                                                                          |
-
-#### Traces
-
-<img width="217" alt="image" src="image/4.png">
-
-| File                  | Description                                                  |
-| --------------------- | ------------------------------------------------------------ |
-| abnormal.pkl          | 记录结构缺失、状态码异常、有报错信息的数据，不包含延时信息异常的数据 |
-| abnormal_half.pkl     | 针对文件所在的命名空间，基于 abnormal.pkl 消除Trace数据中其他命名空间服务信息（仅包含本命名空间服务信息）后的数据 |
-| inbound.pkl           | 针对文件所在的命名空间，记录包含其他命名空间服务调用本命名空间服务的Trace数据 |
-| inbound_half.pkl      | 针对文件所在的命名空间，基于 inbound.pkl 消除Trace数据中其他命名空间服务信息（仅包含本命名空间服务信息）后的数据 |
-| normal.pkl            | 记录结构完整、状态码正常的数据，包含延时信息异常的数据       |
-| outbound.pkl          | 针对文件所在的命名空间，记录包含本命名空间服务调用其他命名空间服务的Trace数据 |
-| outbound_half.pkl     | 针对文件所在的命名空间，基于 outbound.pkl 消除Trace数据中其他命名空间服务信息（仅包含本命名空间服务信息）后的数据 |
-| trace_net_latency.pkl | 统计一对服务调用之间的请求延时数据和响应延时数据             |
-| trace_pod_latency.pkl | 统计一对服务调用之间调用服务从发送请求到接收响应的延时数据   |
-
-#### Logs
-
-每个实例（容器）都有一个 .pkl 文件，其中包含容器的所有业务日志。
-
-<img width="301" alt="image" src="image/5.png">
-
-## 项目结构
-
-```textile
-McroCERCL/
-│├── .gitignore
-│├── Config.py
-│├── MetricCollector.py
-│├── README.md
-│├── anomaly_detection.py
-│├── graph.py
-│├── main.py
-│├── model.py
-│├── model_aggregate.py
-│├── model_attention.py
-│├── requirements.txt
-│└── util/
-│└── │├── KubernetesClient.py
-│└── │├── PrometheusClient.py
-│└── │└── utils.py
-```
-
-## License
-
-This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
+本仓库采用 [Apache License 2.0](LICENSE)。
