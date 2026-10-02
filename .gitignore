@@ -35,3 +35,7 @@ wandb/
 
 *.svg
 论文*
+output
+paper
+tmp
+evidence

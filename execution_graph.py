@@ -395,8 +395,13 @@ def load_execution_graphs(sample_ns_dir: str, max_traces: Optional[int] = 40,
 # Explicit trace-vertex-group -> metric service stem mapping (authoritative,
 # from data-collector/analysis/joint_analysis.py). Full service name is
 # f"{SVC_NS_PREFIX}-{stem}".
+#
+# Two datasets share the same 'agent-network' namespace but use different agent
+# groups. Switch with the AGENT_DATASET env var (default 'thingo'):
+#     export AGENT_DATASET=MARBLEBench
 SVC_NS_PREFIX = 'agent-network'
-GROUP2SVC = {
+
+_GROUP2SVC_THINGO = {
     "AgentNetworkPlannerGroup": "planner",
     "AgentNetworkSummarizerGroup": "summarizer",
     "WordGenerationAgentGroup": "word-gen",
@@ -406,16 +411,46 @@ GROUP2SVC = {
     "OCRParserGroup":           "ocr",
     "CSVGeneratorAgentGroup":   "csv-gen",
     "ImageGenAgentGroup":       "image-gen",
+    "ImageAgentGroup":          "image",           # OCR-front image tool service
     "ExcelGenGroup":            "excel-gen",
     "ExcelGroup":               "excel-parsing",   # Excel read/parse
     "WordAgentGroup":           "word-parsing",    # Word read/parse
 }
+
+# MARBLEBench: full service names are agent-network-marble-* (+ planner/summarizer);
+# stems are the names with the SVC_NS_PREFIX stripped so group_to_service's
+# f"{SVC_NS_PREFIX}-{stem}" reconstruction stays identical to thingo.
+_GROUP2SVC_MARBLE = {
+    "AgentNetworkPlannerGroup":    "planner",
+    "AgentNetworkSummarizerGroup": "summarizer",
+    "MarbleWorldAgentGroup":       "marble-world",
+    "MarbleCodingAgentGroup":      "marble-coding",
+    "MarbleDatabaseAgentGroup":    "marble-database",
+    "MarbleWerewolfAgentGroup":    "marble-werewolf",
+    "MarbleResearchAgentGroup":    "marble-research",
+    "MarbleWebAgentGroup":         "marble-web",
+    "MarbleMinecraftAgentGroup":   "marble-minecraft",
+}
+
+GROUP2SVC_BY_DATASET = {
+    'thingo': _GROUP2SVC_THINGO,
+    'MARBLEBench': _GROUP2SVC_MARBLE,
+}
+
+AGENT_DATASET = os.environ.get('AGENT_DATASET', 'thingo').strip()
+GROUP2SVC = GROUP2SVC_BY_DATASET.get(AGENT_DATASET, _GROUP2SVC_THINGO)
 
 
 def group_to_service(vertex_key: str, services=None) -> Optional[str]:
     """Map an execution-graph vertex key (e.g. 'OCRParserGroup/ocr_tool' or
     'WordGenerationAgentGroup') to its k8s service name via GROUP2SVC.
     If `services` is given, returns the actual matching column name."""
+    # Identity pass-through: datasets whose call_chains.json already stores
+    # service-level paths (e.g. the RE2 adapter) list real service names as
+    # vertices. An agent-network vertex key such as 'OCRParserGroup/ocr_tool'
+    # is never equal to a metric service name, so this is backward-compatible.
+    if services is not None and vertex_key in services:
+        return vertex_key
     stem = GROUP2SVC.get(vertex_key.split('/')[0])
     if stem is None:
         return None

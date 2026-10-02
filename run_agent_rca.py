@@ -62,16 +62,23 @@ def _sustain_mask(mask, min_len):
 
 
 def _series_spike(x, k=5.0, min_rel=0.3):
-    """Robust upper-spike mask for a metric series. Handles both noisy series
-    (median + k*MAD) and near-constant/sparse series (fraction of range)."""
-    x = pd.to_numeric(x, errors='coerce').fillna(0.0)
-    med = x.median()
-    mad = (x - med).abs().median()
-    rng = float(x.max() - med)
+    """Robust upper-spike mask for a metric series. Missing / no-request points
+    (NaN or the -1 sentinel) are EXCLUDED from the median/MAD/range statistics
+    and can never be flagged as a spike. Otherwise a sparse series (e.g. 70%
+    no-request latency) would have its baseline zero-filled, dragging the median
+    to 0 so a service's NORMAL level is misread as a spike."""
+    x = pd.to_numeric(x, errors='coerce')
+    valid = x.notna() & (x != -1)
+    xv = x[valid]
+    if len(xv) < 3:
+        return pd.Series(False, index=x.index)
+    med = xv.median()
+    mad = (xv - med).abs().median()
+    rng = float(xv.max() - med)
     if rng <= 0:
         return pd.Series(False, index=x.index)
     thr = med + max(k * mad, min_rel * rng)
-    return x > thr
+    return (x > thr) & valid
 
 
 def _outside_baseline(df, col, start, end, min_points=3):
@@ -97,7 +104,8 @@ def _baseline_deviation_mask(x, baseline, direction='upper', k=5.0,
     both for QPS.  A relative floor keeps a nearly constant baseline from
     turning harmless numerical jitter into anomalies.
     """
-    x = pd.to_numeric(x, errors='coerce').fillna(0.0)
+    x = pd.to_numeric(x, errors='coerce')
+    valid = x.notna() & (x != -1)          # no-request / missing never flagged
     ref = pd.to_numeric(baseline, errors='coerce').dropna()
     if ref.empty:
         return pd.Series(False, index=x.index)
@@ -107,10 +115,12 @@ def _baseline_deviation_mask(x, baseline, direction='upper', k=5.0,
                 1e-9)
     delta = max(k * mad, min_rel * scale)
     if direction == 'lower':
-        return x < med - delta
-    if direction == 'both':
-        return (x < med - delta) | (x > med + delta)
-    return x > med + delta
+        m = x < med - delta
+    elif direction == 'both':
+        m = (x < med - delta) | (x > med + delta)
+    else:
+        m = x > med + delta
+    return m & valid
 
 
 def _sustained_baseline_deviation(x, baseline, cfg, direction='upper',
@@ -145,7 +155,9 @@ def _latency_active_ts(lat, cfg):
     active = pd.Series(False, index=lat.index)
     for c in lat.columns:
         if c.endswith('&p50'):
-            active = active | _series_spike(lat[c])
+            # -1 = no-data sentinel -> missing (0 is a real value, kept)
+            col = pd.to_numeric(lat[c], errors='coerce').where(lambda v: v != -1)
+            active = active | _series_spike(col)
     active = pd.Series(
         _sustain_mask(active, getattr(cfg, 'win_seg_min_len', 2)),
         index=lat.index)
@@ -205,7 +217,7 @@ def _resource_severity_map(metrics_dir, start, end, cfg, lag_map=None):
             continue
         svc = c.split('&')[0]
         kind = 'cpu' if 'cpu' in c else 'mem'
-        s = pd.to_numeric(w[c], errors='coerce').fillna(0.0)
+        s = pd.to_numeric(w[c], errors='coerce')   # cpu/mem: no missing; masked downstream
         baseline = _outside_baseline(
             df, c, start, end, getattr(cfg, 'baseline_min_points', 3))
         if len(s) < 3 or baseline is None:
@@ -243,6 +255,16 @@ def rank_anomalous_services(sr, lat, qps, start, end, metrics_dir=None,
     w_qps = getattr(cfg, 'severity_qps_weight', 0.1) if cfg is not None else 0.1
     min_points = getattr(cfg, 'baseline_min_points', 3) if cfg is not None else 3
     min_rel = getattr(cfg, 'metric_min_rel', 0.3) if cfg is not None else 0.3
+    # no-request masking: only the -1 no-data sentinel is missing for both
+    # latency and qps; 0 is a REAL value (kept) -- latency 0 or a qps collapse
+    # to 0 are genuine signals, not missing.
+    lat = lat.copy()
+    _p50 = [c for c in lat.columns if c.endswith('&p50')]
+    if _p50:
+        lat[_p50] = lat[_p50].where(lat[_p50] != -1)
+    qps = qps.copy()
+    _qc = [c for c in qps.columns if c != 'timestamp']
+    qps[_qc] = qps[_qc].where(qps[_qc] != -1)
     m = (sr['timestamp'] >= start) & (sr['timestamp'] <= end)
     sr_w = sr.loc[m]
     lat_w = lat.loc[(lat['timestamp'] >= start) & (lat['timestamp'] <= end)]
@@ -361,8 +383,16 @@ def _node_to_service(node: str) -> str:
     service name for comparison with the severity ranking."""
     if node.startswith('node-'):
         return node
-    # strip deployment-hash suffix from pod names: svc-<hash>-<hash>
-    return re.sub(r'-[0-9a-z]{6,10}-[0-9a-z]{5}$', '', node)
+    # Strip the deployment-hash suffix from pod names: svc-<replicaset>-<pod>.
+    # Only strip when the candidate suffix actually looks like a k8s hash (it
+    # carries a digit); a purely alphabetic tail such as the '-network-image' of
+    # 'agent-network-image' is part of the service name, not a pod hash, and must
+    # be preserved (otherwise the service collapses to 'agent' and is never
+    # matched against its own ground-truth label).
+    m = re.search(r'-[0-9a-z]{6,10}-[0-9a-z]{5}$', node)
+    if m and any(ch.isdigit() for ch in m.group(0)):
+        return node[:m.start()]
+    return node
 
 
 def run_gnn_ranker(cfg, ns_dir, base_dir, start, end, severity_map=None,

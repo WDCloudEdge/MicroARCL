@@ -72,6 +72,8 @@ def build_svc_call_edges(ns_dir: str, services: List[str]) -> Set[Tuple[str, str
             if a != b:
                 edges.add((a, b))
     summary = 'agent-network-summarizer'
+    if summary not in services:     # not the agent dataset (e.g. RE2) -> no sink
+        return edges
     summary_set = set()
     for s, d in list(edges):   # snapshot: we mutate `edges` inside the loop
         summary_s = s + '-' + summary
@@ -85,7 +87,7 @@ def build_svc_call_edges(ns_dir: str, services: List[str]) -> Set[Tuple[str, str
     return edges
 
 
-def build_graphs(ns_dir: str) -> Dict[str, nx.DiGraph]:
+def build_graphs(ns_dir: str, reverse: bool = False) -> Dict[str, nx.DiGraph]:
     """Build per-timestamp topology graphs.
 
     svc->svc call edges come from the execution-graph routes (call_chains.json,
@@ -93,6 +95,12 @@ def build_graphs(ns_dir: str) -> Dict[str, nx.DiGraph]:
     comes from graph.csv per timestamp (istio/prometheus). Physical node name
     is the node's center (multi-center = multiple machines); svc center is
     'svc-none'. Falls back to graph.csv svc edges if no exec routes are found.
+
+    reverse=True transposes the svc->svc call edges (caller->callee becomes
+    callee->caller) so the GNN propagates anomaly signal from downstream victims
+    back toward the upstream root cause, instead of accumulating it on the
+    call-graph sink (summarizer). pod<->node and svc<->pod links stay
+    bidirectional and are unaffected.
     """
     metrics_dir = os.path.join(ns_dir, 'metrics')
     graph_csv = os.path.join(metrics_dir, 'graph.csv')
@@ -125,14 +133,16 @@ def build_graphs(ns_dir: str) -> Dict[str, nx.DiGraph]:
         # ---- svc->svc edges ----
         if use_fallback:
             for src, dst in svc_ts_fallback.get(ts, []):
-                g.add_edge(src, dst)
+                a, b = (dst, src) if reverse else (src, dst)
+                g.add_edge(a, b)
                 for n in (src, dst):
                     g.nodes[n]['type'] = NodeType.SVC.value
                     g.nodes[n]['center'] = 'svc-none'
                     svc_exist.add(n)
         else:
             for src, dst in svc_edges:      # static async routing
-                g.add_edge(src, dst)
+                a, b = (dst, src) if reverse else (src, dst)
+                g.add_edge(a, b)
                 for n in (src, dst):
                     g.nodes[n]['type'] = NodeType.SVC.value
                     g.nodes[n]['center'] = 'svc-none'
@@ -198,7 +208,8 @@ def gnn_rank(config, base_dir: str, start_ts: int, end_ts: int,
              label: str = 'agent', is_train: TrainType = TrainType.TRAIN,
              severity_map: Dict[str, float] = None,
              evaluation_root_cause: Optional[str] = None,
-             lag_map: Optional[Dict[Tuple[str, str], int]] = None
+             lag_map: Optional[Dict[Tuple[str, str], int]] = None,
+             return_components: bool = False
              ) -> Dict[str, float]:
     """Run the heterogeneous GNN root-cause ranker over [start_ts, end_ts].
     Returns {node_name: score} sorted desc, or {} if the topology is empty."""
@@ -227,7 +238,8 @@ def gnn_rank(config, base_dir: str, start_ts: int, end_ts: int,
         nz = {k: v for k, v in lag_map.items() if v > 0}
         print(f'[agent_gnn] using shared lags (non-zero): {nz}')
 
-    graphs_ts = build_graphs(ns_dir)
+    graphs_ts = build_graphs(
+        ns_dir, reverse=getattr(config, 'gnn_graph_reverse', True))
 
     # ---- single time_pair covering the whole adaptive window ----
     # (main.py chunks by config.duration; here the window is already the
@@ -257,6 +269,10 @@ def gnn_rank(config, base_dir: str, start_ts: int, end_ts: int,
 
     # ---- per time_pair: anomaly detection + build hetero graphs + train ----
     ranking: Dict[str, float] = {}
+    # raw components (accumulated across intervals) for offline fusion tuning
+    comp_gnn: Dict[str, float] = {}
+    comp_sev: Dict[str, float] = {}
+    comp_deg: Dict[str, int] = {}
     for time_pair in time_pair_list:
         tw = f'{time_pair[0]}-{time_pair[1]}'
         anomalies_ns, anomaly_time_series = get_anomaly_by_df(
@@ -337,6 +353,11 @@ def gnn_rank(config, base_dir: str, start_ts: int, end_ts: int,
         # B.3: severity prior per node (svc/pod inherit service severity;
         # physical node = mean of adjacent pods' service severity)
         node_severity = _build_node_severity(graphs_combine, severity_map or {})
+        # total (in+out) degree per node for optional hub/sink suppression
+        deg: Dict[str, int] = {}
+        for g in graphs_combine.values():
+            for n in g.nodes():
+                deg[n] = deg.get(n, 0) + g.in_degree(n) + g.out_degree(n)
         try:
             _, sorted_dict_node = train(
                 config, tw, evaluation_root_cause, center_map, anomaly_index,
@@ -347,7 +368,26 @@ def gnn_rank(config, base_dir: str, start_ts: int, end_ts: int,
         except Exception as e:
             print(f'[agent_gnn] train failed for {tw}: {e}')
             continue
+        # Anchor the GNN logits to the severity prior and (optionally) penalize
+        # high-degree hubs/sinks. The bp objective only uses severity as a
+        # training target, so the converged logits still drift toward
+        # structurally central nodes (summarizer/word-gen); this readout fusion
+        # pulls the final ranking back toward the metric-level severity prior.
+        #   final = (1-w)*gnn + w*severity   (w = gnn_severity_anchor)
+        #   final /= (1 + lam*degree)        (lam = gnn_hub_penalty, 0=off)
+        w = float(getattr(config, 'gnn_severity_anchor', 0.5))
+        lam = float(getattr(config, 'gnn_hub_penalty', 0.0))
         for node, score in sorted_dict_node.items():
-            ranking[node] = ranking.get(node, 0.0) + float(score)
+            sev = float(node_severity.get(node, 0.0))
+            fused = (1.0 - w) * float(score) + w * sev
+            if lam > 0.0:
+                fused /= (1.0 + lam * deg.get(node, 0))
+            ranking[node] = ranking.get(node, 0.0) + fused
+            comp_gnn[node] = comp_gnn.get(node, 0.0) + float(score)
+            comp_sev[node] = max(comp_sev.get(node, 0.0), sev)
+            comp_deg[node] = max(comp_deg.get(node, 0), deg.get(node, 0))
 
-    return dict(sorted(ranking.items(), key=lambda kv: kv[1], reverse=True))
+    result = dict(sorted(ranking.items(), key=lambda kv: kv[1], reverse=True))
+    if return_components:
+        return result, comp_gnn, comp_sev, comp_deg
+    return result

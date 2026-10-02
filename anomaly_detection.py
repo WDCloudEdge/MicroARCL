@@ -152,28 +152,26 @@ def df_time_limit_normalization_ctn_anomalies_with_index(df, begin_timestamp, en
     anomalies_index = {}
     for node, metrics in df.items():
         if not node == 'timestamp':
-            series_list = []
-            boundary_index = (metrics != -1)
-            if_exist = False
-            index = []
-            for i, a in enumerate(boundary_index):
-                if not if_exist and a:
-                    if_exist = True
-                    index.append(i)
-                elif if_exist and not a:
-                    if_exist = False
-                    index.append(i - 1)
-            if if_exist:
-                index.append(len(boundary_index) - 1)
-            if len(index) == 2 and index[0] == 0 and index[1] == len(boundary_index) - 1:
-                prune_series = metrics
-            else:
-                for i in range(0, len(index) - 1, 2):
-                    series_list.append(metrics[index[i]:index[i + 1] + 1])
-                prune_series = pd.concat(series_list, axis=0)
-            is_anomaly, anomaly_time_series_index = anomaly_detection_with_smoothing_series(prune_series, threshold=threshold)
-            if is_anomaly:
-                anomalies_index[node] = [df_index_time[idx + index[0]] for idx in anomaly_time_series_index]
+            numeric = pd.to_numeric(metrics, errors='coerce')
+            # -1 is an explicit "metric missing" sentinel. Missing telemetry is
+            # itself anomalous, so retain those timestamps as anomaly evidence;
+            # only exclude them from Birch's value clustering.
+            sentinel_positions = np.flatnonzero(numeric.to_numpy() == -1)
+            valid_positions = np.flatnonzero(
+                numeric.notna().to_numpy() & (numeric.to_numpy() != -1))
+            detected_positions = set(int(i) for i in sentinel_positions)
+            if len(valid_positions) > 0:
+                observed = numeric.iloc[valid_positions].reset_index(drop=True)
+                is_anomaly, observed_anomaly_indices = (
+                    anomaly_detection_with_smoothing_series(
+                        observed, threshold=threshold))
+                if is_anomaly:
+                    detected_positions.update(
+                        int(valid_positions[idx])
+                        for idx in observed_anomaly_indices)
+            if detected_positions:
+                anomalies_index[node] = [
+                    df_index_time[idx] for idx in sorted(detected_positions)]
     return anomalies_index
 
 

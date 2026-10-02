@@ -318,9 +318,11 @@ def get_hg(graphs: Dict[str, nx.DiGraph], graphs_index: Dict[str, GraphIndex], a
                 if 'feat' not in _hg.nodes[type].data:
                     feat_zeros = th.zeros((_hg.number_of_nodes(type), graph.nodes[node_index.name]['data'].shape[0],
                                            graph.nodes[node_index.name]['data'].shape[1]), dtype=th.float32)
-                    # A.2 sparse mask: 1 = active/observed, 0 = missing/inactive.
-                    # Missing nodes stay all-zero (mask=0); filled/absent values
-                    # (0 after fillna in graph_weight*) are treated as inactive.
+                    # A.2 sparse mask: a node/channel present in the collected
+                    # frame is observed even when its value is 0 (a valid normal
+                    # observation) or -1 (the explicit missing-metric sentinel,
+                    # which must remain visible as an anomaly signal). Nodes
+                    # absent from the topology interval stay all-zero (mask=0).
                     mask_zeros = th.zeros_like(feat_zeros)
                     if th.cuda.is_available():
                         _hg.nodes[type].data['feat'] = feat_zeros.to('cpu')
@@ -330,7 +332,7 @@ def get_hg(graphs: Dict[str, nx.DiGraph], graphs_index: Dict[str, GraphIndex], a
                         _hg.nodes[type].data['mask'] = mask_zeros
                 feat_data = th.tensor(graph.nodes[node_index.name]['data'].values,
                                       dtype=th.float32)
-                mask_data = (feat_data != 0).to(th.float32)
+                mask_data = th.ones_like(feat_data)
                 if th.cuda.is_available():
                     _hg.nodes[type].data['feat'][node_index.index] = feat_data.to('cpu')
                     _hg.nodes[type].data['mask'][node_index.index] = mask_data.to('cpu')
