@@ -106,10 +106,12 @@ class AggrHGraphConvWindow(nn.Module):
             NodeType.POD.value: graph.hetero_graph.nodes[NodeType.POD.value].data[
                                     'feat'][:, :time_series, :],
         }
-        # A.2 sparse mask aligned with feat_dict (falls back to feat!=0 if absent)
+        # A.2 sparse mask aligned with feat_dict. Legacy graphs without an
+        # explicit mask treat every stored value as observed because both 0 and
+        # the -1 missing-metric sentinel carry meaning.
         def _mask(nt):
             data = graph.hetero_graph.nodes[nt].data
-            m = data['mask'] if 'mask' in data else (data['feat'] != 0).to(th.float32)
+            m = data['mask'] if 'mask' in data else th.ones_like(data['feat'])
             return m[:, :time_series, :]
         mask_dict = {NodeType.NODE.value: _mask(NodeType.NODE.value),
                      NodeType.SVC.value: _mask(NodeType.SVC.value),
@@ -285,7 +287,8 @@ class AggrUnsupervisedGNN(nn.Module):
         super(AggrUnsupervisedGNN, self).__init__()
         # B.3: severity-as-prior. When node_severity is provided, the bp target
         # for every node becomes severity*coeff (coeff=1 if Birch-anomaly else
-        # severity_param); when empty, falls back to the original 0/1 target.
+        # the fixed severity_param); when empty, falls back to a fixed bounded
+        # propagation target. Target coefficients are never learned.
         self.node_severity = node_severity or {}
         self.severity_param = severity_param
         self.conv = AggrHGraphConvWindows(out_channel=out_channels, hidden_channel=hidden_size,
@@ -319,28 +322,6 @@ class AggrUnsupervisedGNN(nn.Module):
                     graph_anomaly_center_nodess[ano] = graph_anomaly_center_nodes
             self.graphs_anomaly_center_nodes.append(graph_anomaly_center_nodess)
 
-        class ParameterWrapper(nn.Module):
-            def __init__(self, size, device):
-                super(ParameterWrapper, self).__init__()
-                self.param = nn.Parameter(th.ones(size, requires_grad=True, device=device))
-
-            def forward(self):
-                # Learn a propagation probability rather than an unbounded
-                # multiplier. Existing checkpoints remain state-dict compatible.
-                return th.sigmoid(self.param)
-
-        self.precessor_neighbor_node_weight = nn.ModuleList()
-        for graph_anomaly_nodess in self.graphs_anomaly_center_nodes:
-            graph_anomalies_weight = nn.ModuleDict()
-            for a, graph_anomaly_center in graph_anomaly_nodess.items():
-                if a not in graph_anomalies_weight:
-                    graph_anomalies_weight[a] = nn.ModuleDict()
-                for center in graph_anomaly_center:
-                    graph_anomalies_weight[a][center] = ParameterWrapper(
-                        size=len(graph_anomaly_center[center]),
-                        device='cpu'
-                    )
-            self.precessor_neighbor_node_weight.append(graph_anomalies_weight)
         self.anomaly_index = anomaly_index
         self.center_map = center_map
         self.criterion = nn.MSELoss()
@@ -353,16 +334,17 @@ class AggrUnsupervisedGNN(nn.Module):
     def loss(self, aggr_feat, aggr_center_index, aggr_anomaly_index, window_graphs_index, window_time_series_sizes,
              window_anomaly_time_series):
         sum_criterion = 0
-        use_prior = bool(self.node_severity)
+        # An all-zero severity map carries no prior information and must use the
+        # fixed fallback rather than silently fitting an all-zero target.
+        use_prior = any(float(value) > 0 for value in self.node_severity.values())
 
         for idx, anomaly_index_combine in enumerate(aggr_anomaly_index):
             aggr_feat_idx = aggr_feat[idx]
-            graph_anomaly_center_nodes_weight = self.precessor_neighbor_node_weight[idx]
 
             if use_prior:
                 # B.3: one target per graph = severity * coeff for every node.
-                # base coeff = severity_param (normal); anomaly source coeff = 1;
-                # neighbors keep the learnable bp weight, scaled by severity.
+                # The coefficient is fixed: severity_param for normal nodes and
+                # 1 for Birch anomaly sources. No part of the target is learned.
                 sev = torch.zeros_like(aggr_feat_idx)
                 for name, pos in window_graphs_index[idx].items():
                     sev[pos] = min(1.0, max(
@@ -370,24 +352,17 @@ class AggrUnsupervisedGNN(nn.Module):
                 target = self.severity_param * sev.clone()
                 for anomaly in anomaly_index_combine:
                     if len(anomaly_index_combine[anomaly]) > 0:
-                        anomaly_w = graph_anomaly_center_nodes_weight[anomaly]
                         aai = anomaly_index_combine[anomaly]
                         source_index_matrix = torch.tensor(aai['source'])
                         target[source_index_matrix] = sev[source_index_matrix]
-                        if 'neighbor' in aai:
-                            for center in aai['neighbor']:
-                                center_node_weight = anomaly_w[center]
-                                for ano_idx_idx in range(len(aai['neighbor'][center])):
-                                    neighbor_index_matrix = torch.tensor(aai['neighbor'][center][ano_idx_idx])
-                                    target[neighbor_index_matrix] = (
-                                        center_node_weight()[ano_idx_idx] * sev[neighbor_index_matrix])
                 target = target.clamp(0.0, 1.0)
                 sum_criterion += self.criterion(aggr_feat_idx, target)
             else:
-                # original behavior (0 base, anomaly source = 1)
+                # No usable severity prior: fixed back-propagation target.
+                # Sources are 1, immediate neighbors use the same bounded,
+                # non-learnable coefficient, and all remaining nodes are 0.
                 for anomaly in anomaly_index_combine:
                     if len(anomaly_index_combine[anomaly]) > 0:
-                        anomaly_graph_anomaly_center_nodes_weight = graph_anomaly_center_nodes_weight[anomaly]
                         aggr_anomaly_nodes_index = anomaly_index_combine[anomaly]
                         rate = 1
                         aggr_feat_label_weight = torch.zeros_like(aggr_feat_idx)
@@ -396,8 +371,7 @@ class AggrUnsupervisedGNN(nn.Module):
                         if 'neighbor' in aggr_anomaly_nodes_index:
                             for center in aggr_anomaly_nodes_index['neighbor']:
                                 for ano_idx_idx, ano_idx in enumerate(aggr_anomaly_nodes_index['neighbor'][center]):
-                                    center_node_weight = anomaly_graph_anomaly_center_nodes_weight[center]
-                                    precessor_rate = 1 * center_node_weight()[ano_idx_idx]
+                                    precessor_rate = self.severity_param
                                     neighbor_index_matrix = torch.tensor(
                                         aggr_anomaly_nodes_index['neighbor'][center][ano_idx_idx])
                                     aggr_feat_label_weight[neighbor_index_matrix] = precessor_rate
