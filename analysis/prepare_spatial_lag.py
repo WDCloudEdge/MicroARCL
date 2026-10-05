@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Prepare trace-grounded spatial and execution-lag evidence.
+"""RQ2 spatial + execution-lag evidence (paper S5.2.2) over the MicroASBench
+failure runs. Panel (a): adjacent vs nonadjacent one-step ridge predictability
+lift (added test R^2). Panel (b): cumulative request execution time by call
+depth. Service adjacency comes from graph/call_chains.json (validated against
+graph.csv); timing from graph/graph_json/*.json spans.
 
-Usage: .venv/bin/python evidence/prepare_spatial_lag.py
-
-graph.csv contains pod/host and unknown/service links, *not* service calls.
-Service calls come from graph/call_chains.json; graph.csv validates their
-service names. Spatial evidence is out-of-sample incremental predictability,
-not an intervention-based causal estimate. Raw graph_json spans provide the
-separate, request-level cumulative execution-time evidence.
+Input : data/<dataset>/abnormal/<group>/<load>/<sample> (--dataset MDOC|MARBLEBench)
+Output: analysis/tables/{dataset}_{spatial,timing,audit}.csv
 """
 from __future__ import annotations
 
@@ -20,9 +19,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path('/Volumes/macbookproTi600/zhuyuhan/078-WHU/researchProject/data-collector/data')
-OUT = Path(__file__).resolve().parent / 'processed'
-LOADS = {'load-3', 'load-3-single', 'load-5', 'load-5-single'}
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+ROOT = _REPO_ROOT / 'data'
+OUT = _REPO_ROOT / 'analysis' / 'tables'
 METRICS = ('cpu_usage', 'mem_usage', 'net_receive', 'net_trainsmit')
 
 
@@ -210,15 +209,14 @@ def timing_rows(sample: Path, dataset: str, valid: set[str]) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', choices=['MARBLEBench', 'thingo'], nargs='*',
-                        default=['MARBLEBench', 'thingo'])
+    parser.add_argument('--dataset', choices=['MARBLEBench', 'MDOC'], nargs='*',
+                        default=['MARBLEBench', 'MDOC'])
     parser.add_argument('--max-samples', type=int, default=None,
                         help='development only; omit for all samples')
     args = parser.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     for dataset in args.dataset:
-        paths = sorted(p for p in (ROOT / dataset / 'abnormal').rglob('call_chains.json')
-                       if p.parents[3].name in LOADS)
+        paths = sorted((ROOT / dataset / 'abnormal').rglob('call_chains.json'))
         if args.max_samples is not None:
             paths = paths[:args.max_samples]
         spatial, timing, audit = [], [], []

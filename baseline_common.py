@@ -44,7 +44,7 @@ from llm_localize import llm_localize
 
 
 # Root-cause service -> category for per-category breakdown.
-CATEGORY_THINGO = {
+CATEGORY_MDOC = {
     'agent-network-pdf-parsing': 'doc',
     'agent-network-word-gen': 'doc',
     'agent-network-image': 'image',
@@ -60,16 +60,16 @@ CATEGORY_MARBLE = {
     'agent-network-marble-minecraft': 'game',
     'agent-network-marble-research': 'web',
 }
-CATEGORIES_THINGO = ('doc', 'image', 'sched')
+CATEGORIES_MDOC = ('doc', 'image', 'sched')
 CATEGORIES_MARBLE = ('web', 'coding', 'db', 'game', 'sched')
 
 CATEGORY_BY_DATASET = {
-    'thingo': CATEGORY_THINGO,
+    'MDOC': CATEGORY_MDOC,
     'MARBLEBench': CATEGORY_MARBLE,
 }
-CATEGORIES = os.environ.get('AGENT_DATASET', 'thingo') == 'thingo' and CATEGORIES_THINGO or CATEGORIES_MARBLE
-AGENT_DATASET = os.environ.get('AGENT_DATASET', 'thingo').strip()
-CATEGORY = CATEGORY_BY_DATASET.get(AGENT_DATASET, CATEGORY_THINGO)
+CATEGORIES = os.environ.get('AGENT_DATASET', 'MDOC') == 'MDOC' and CATEGORIES_MDOC or CATEGORIES_MARBLE
+AGENT_DATASET = os.environ.get('AGENT_DATASET', 'MDOC').strip()
+CATEGORY = CATEGORY_BY_DATASET.get(AGENT_DATASET, CATEGORY_MDOC)
 
 # Dataset layout: abnormal/<group>/<load>/<sample>, group in {single, multi},
 # load e.g. load-3 / load-5 / load-3-multi. Results report a 4-level hierarchy:
@@ -439,6 +439,7 @@ def _run_batch(method, align, tag, detector='birch', **opts):
     if 'lag_mode' in opts:                         # allow per-run lag mode
         cfg.lag_mode = opts.pop('lag_mode')
     groups = opts.pop('groups', None)              # None -> all groups present
+    limit = opts.pop('limit', None)                # None -> all samples (smoke cap)
     samples = []
     for group, load, adir in _discover(groups):
         labs = parse_labels(adir)
@@ -446,6 +447,8 @@ def _run_batch(method, align, tag, detector='birch', **opts):
             sdir = os.path.join(adir, n)
             if os.path.isdir(sdir):
                 samples.append((n, sdir, group, load, labs[n]))
+    if limit:
+        samples = samples[:limit]
     print(f'Baseline [{tag}]  method={method} align={align} detector={detector}')
     print(f'Found {len(samples)} labeled samples across '
           f'{sorted({(g, l) for _, _, g, l, _ in samples})}.')

@@ -1,0 +1,56 @@
+{
+  "dataset": "/Volumes/macbookproTi600/zhuyuhan/078-WHU/researchProject/data-collector/data/MARBLEBench",
+  "samples": {
+    "normal": 4,
+    "abnormal": 120
+  },
+  "observed_microservices": 9,
+  "service_names": [
+    "agent-network-marble-coding",
+    "agent-network-marble-database",
+    "agent-network-marble-minecraft",
+    "agent-network-marble-research",
+    "agent-network-marble-web",
+    "agent-network-marble-werewolf",
+    "agent-network-marble-world",
+    "agent-network-planner",
+    "agent-network-summarizer"
+  ],
+  "agent_services": 9,
+  "failures": 120,
+  "time_span": {
+    "first_window_start": "2026-09-30 02:26:20",
+    "last_window_end": "2026-10-02 16:39:48",
+    "wall_clock_hours": 62.224,
+    "sum_sample_window_hours": 41.371,
+    "abnormal_window_hours": 39.704,
+    "labeled_windows": 124
+  },
+  "records": {
+    "request_execution_graphs": 19481,
+    "service_executions": 64385,
+    "llm_messages": 178481,
+    "llm_tokens": 62933200,
+    "metric_records": 229035,
+    "log_records": 17368830
+  },
+  "span_types": {
+    "group": 40890,
+    "agent": 23495
+  },
+  "graphs_by_split": {
+    "normal": 485,
+    "abnormal": 18996
+  },
+  "metric_rows_by_file": {
+    "call.csv": 19907,
+    "instance.csv": 29885,
+    "instances_num.csv": 29885,
+    "latency.csv": 19907,
+    "node.csv": 29885,
+    "resource.csv": 29885,
+    "success_rate.csv": 19907,
+    "svc_metric.csv": 29885,
+    "svc_qps.csv": 19889
+  }
+}

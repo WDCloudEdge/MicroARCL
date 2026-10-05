@@ -61,7 +61,7 @@ class Config:
         # ===== Agent-service RCA (initial version) =====
         # single-namespace agent dataset root (a failure/normal sample directory)
         self.agent_namespace = 'agent-network'
-        self.agent_sample_dir = 'data/thingo/abnormal/agent-network-pdf-parsing_cpu_load_1'
+        self.agent_sample_dir = 'data/MDOC/abnormal/agent-network-pdf-parsing_cpu_load_1'
 
         # --- Module B.0 label-free adaptive window (aligned KPI timeline) ---
         self.win_seg_min_len = 2        # min significant anomaly segment length (steps)
