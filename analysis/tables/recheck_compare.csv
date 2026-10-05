@@ -1,0 +1,7 @@
+run,lat_info%,succ_info%,qps_nonzero%,latP99_CV_med,latP99_CV_max,netRecv_CV_max,traces,chain_len_mean,chain_len_max,distinct_paths,planner_execCV,ocr_execCV
+1 user single,9.9,19.5,9.8,0.17,4.12,3.75,46,2.83,7,12,0.89,0.83
+1 user multi,9.8,18.7,10.0,0.59,3.89,0.32,40,2.83,7,14,0.26,0.64
+3 users single,14.2,24.2,14.4,0.79,2.14,1.55,122,2.63,6,16,0.48,0.94
+3 users multi,13.9,22.3,13.9,0.54,1.17,1.27,120,2.59,6,17,0.28,1.31
+5 users single,20.6,36.6,21.2,0.45,1.05,1.32,173,2.98,9,22,0.7,2.81
+5 users multi,16.3,25.2,16.6,0.54,1.04,2.44,204,2.55,8,17,0.81,1.17

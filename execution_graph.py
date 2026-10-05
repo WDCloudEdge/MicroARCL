@@ -397,11 +397,11 @@ def load_execution_graphs(sample_ns_dir: str, max_traces: Optional[int] = 40,
 # f"{SVC_NS_PREFIX}-{stem}".
 #
 # Two datasets share the same 'agent-network' namespace but use different agent
-# groups. Switch with the AGENT_DATASET env var (default 'thingo'):
+# groups. Switch with the AGENT_DATASET env var (default 'MDOC'):
 #     export AGENT_DATASET=MARBLEBench
 SVC_NS_PREFIX = 'agent-network'
 
-_GROUP2SVC_THINGO = {
+_GROUP2SVC_MDOC = {
     "AgentNetworkPlannerGroup": "planner",
     "AgentNetworkSummarizerGroup": "summarizer",
     "WordGenerationAgentGroup": "word-gen",
@@ -419,7 +419,7 @@ _GROUP2SVC_THINGO = {
 
 # MARBLEBench: full service names are agent-network-marble-* (+ planner/summarizer);
 # stems are the names with the SVC_NS_PREFIX stripped so group_to_service's
-# f"{SVC_NS_PREFIX}-{stem}" reconstruction stays identical to thingo.
+# f"{SVC_NS_PREFIX}-{stem}" reconstruction stays identical to MDOC.
 _GROUP2SVC_MARBLE = {
     "AgentNetworkPlannerGroup":    "planner",
     "AgentNetworkSummarizerGroup": "summarizer",
@@ -433,12 +433,12 @@ _GROUP2SVC_MARBLE = {
 }
 
 GROUP2SVC_BY_DATASET = {
-    'thingo': _GROUP2SVC_THINGO,
+    'MDOC': _GROUP2SVC_MDOC,
     'MARBLEBench': _GROUP2SVC_MARBLE,
 }
 
-AGENT_DATASET = os.environ.get('AGENT_DATASET', 'thingo').strip()
-GROUP2SVC = GROUP2SVC_BY_DATASET.get(AGENT_DATASET, _GROUP2SVC_THINGO)
+AGENT_DATASET = os.environ.get('AGENT_DATASET', 'MDOC').strip()
+GROUP2SVC = GROUP2SVC_BY_DATASET.get(AGENT_DATASET, _GROUP2SVC_MDOC)
 
 
 def group_to_service(vertex_key: str, services=None) -> Optional[str]:

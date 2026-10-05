@@ -1,0 +1,22 @@
+load,depth,n,median_s,p90_s,iqr_s
+1 user (multi),0,35,13.3,16.4,3.3
+1 user (multi),1,31,13.3,16.2,3.3
+1 user (multi),2,31,19.2,56.8,31.3
+1 user (multi),3,7,16.7,20.3,2.6
+1 user (multi),4,6,46.5,53.7,9.6
+1 user (multi),5,2,32.2,39.5,9.1
+1 user (multi),6,1,93.2,93.2,0.0
+3 users (multi),0,96,13.1,17.9,6.1
+3 users (multi),1,90,13.1,17.8,6.0
+3 users (multi),2,90,24.1,70.7,31.4
+3 users (multi),3,18,19.6,40.2,8.7
+3 users (multi),4,14,53.8,78.9,31.4
+3 users (multi),5,3,75.7,76.2,2.4
+5 users (multi),0,178,16.4,76.4,49.4
+5 users (multi),1,148,17.6,76.4,49.1
+5 users (multi),2,148,52.9,108.9,64.5
+5 users (multi),3,26,25.8,80.3,27.4
+5 users (multi),4,14,64.9,82.6,10.1
+5 users (multi),5,3,82.0,163.2,57.7
+5 users (multi),6,2,107.6,111.1,4.4
+5 users (multi),7,1,131.3,131.3,0.0

@@ -1,0 +1,505 @@
+import json
+import sys
+import os
+from os.path import join
+import requests
+import zipfile
+from tqdm import tqdm
+
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+
+ENCODING = "utf-8"
+
+
+def is_py312():
+    return sys.version_info.major == 3 and sys.version_info.minor == 12
+
+
+def is_py310():
+    return sys.version_info.major == 3 and sys.version_info.minor == 10
+
+
+def is_py314():
+    return sys.version_info.major == 3 and sys.version_info.minor == 14
+
+
+def is_py38():
+    return sys.version_info.major == 3 and sys.version_info.minor == 8
+
+
+def dump_json(filename: str, data):
+    """
+    Dump data into a json file
+    """
+    with open(filename, "w", encoding=ENCODING) as obj:
+        json.dump(data, obj, ensure_ascii=False, indent=2, sort_keys=True)
+
+
+def load_json(filename: str):
+    """
+    Load data from a json file
+    """
+    with open(filename, encoding=ENCODING) as obj:
+        return json.load(obj)
+
+
+# Cases ship in two interchangeable layouts: the original
+# metrics.json / logs.csv / traces.csv, and the Parquet conversion published on
+# Hugging Face (metrics.parquet / logs.parquet / traces.parquet). The readers
+# below accept either and return the same DataFrame.
+_CASE_FILES = {
+    "metrics": ("metrics.parquet", "metrics.json"),
+    "logs": ("logs.parquet", "logs.csv"),
+    "traces": ("traces.parquet", "traces.csv"),
+}
+
+
+def resolve_case_file(case_dir, kind):
+    """Locate `kind` ("metrics", "logs" or "traces") inside a case directory.
+
+    Prefers Parquet when both layouts are present. Returns None when neither
+    exists, which is normal: RE1 cases carry no logs or traces, and Sock Shop
+    is not traced.
+    """
+    if kind not in _CASE_FILES:
+        raise ValueError(f"unknown kind {kind!r}, expected one of {list(_CASE_FILES)}")
+    for name in _CASE_FILES[kind]:
+        path = join(str(case_dir), name)
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def read_metrics(case_dir):
+    """Read a case's metrics as a wide DataFrame.
+
+    Returns a `time` column of unix seconds followed by one float column per
+    metric, sorted by time. Timestamps at which a metric was not observed stay
+    NaN: no forward-fill or resampling happens here, so both the JSON and the
+    Parquet layout produce the same frame. Callers apply their own filling.
+    """
+    path = resolve_case_file(case_dir, "metrics")
+    if path is None:
+        raise FileNotFoundError(f"no metrics.parquet or metrics.json in {case_dir}")
+    if path.endswith(".parquet"):
+        return pd.read_parquet(path)
+
+    raw = {k: v for k, v in load_json(path).items() if v}
+    union = sorted({p[0] for v in raw.values() for p in v})
+    pos = {t: i for i, t in enumerate(union)}
+    cols = list(raw)
+    arr = np.full((len(union), len(cols)), np.nan, dtype=np.float64)
+    for j, k in enumerate(cols):
+        for ts, val in raw[k]:
+            if val is not None:
+                arr[pos[ts], j] = val
+    df = pd.DataFrame(arr, columns=cols)
+    df.insert(0, "time", np.asarray(union, dtype=np.int64))
+    return df
+
+
+def read_logs(case_dir):
+    """Read a case's logs, or None when the case has none."""
+    path = resolve_case_file(case_dir, "logs")
+    if path is None:
+        return None
+    df = pd.read_parquet(path) if path.endswith(".parquet") else pd.read_csv(
+        path, dtype=str, low_memory=False, keep_default_na=False, na_values=[""]
+    )
+    return None if df.empty else df
+
+
+def read_traces(case_dir):
+    """Read a case's traces, or None when the case has none."""
+    path = resolve_case_file(case_dir, "traces")
+    if path is None:
+        return None
+    df = pd.read_parquet(path) if path.endswith(".parquet") else pd.read_csv(
+        path, dtype=str, low_memory=False, keep_default_na=False, na_values=[""]
+    )
+    return None if df.empty else df
+
+
+def convert_adjacency_matrix(adj, node_names):
+    """
+    convert metrics adj to service adj
+    """
+    services = list(set([name.split("_")[0] for name in node_names]))
+    # print(services)
+    num_services = len(services)
+
+    service_adj = np.zeros((num_services, num_services))
+
+    for i in range(adj.shape[0]):
+        for j in range(adj.shape[0]):
+            if adj[i][j] == 1:
+                service_adj[services.index(node_names[i].split("_")[0])][
+                    services.index(node_names[j].split("_")[0])
+                ] = 1
+
+    # remove cycles
+    for i in range(num_services):
+        service_adj[i][i] = 0
+
+    return service_adj, services  # services is node_names but for services
+
+
+def download_data(remote_url=None, local_path=None):
+    """Download data from a remote URL."""
+    if remote_url is None:
+        remote_url = "https://github.com/phamquiluan/baro/releases/download/0.0.4/simple_data.csv"
+    if local_path is None:
+        local_path = "data.csv"
+
+    response = requests.get(remote_url, stream=True)
+    total_size_in_bytes = int(response.headers.get("content-length", 0))
+    block_size = 1024 # 1 Kibibyte
+
+    progress_bar = tqdm(
+        desc=f"Downloading {local_path}..",
+        total=total_size_in_bytes,
+        unit="iB",
+        unit_scale=True,
+    )
+
+    with open(local_path, "wb") as ref:
+        for data in response.iter_content(block_size):
+            progress_bar.update(len(data))
+            ref.write(data)
+
+    progress_bar.close()
+    if total_size_in_bytes != 0 and progress_bar.n != total_size_in_bytes:
+        print("ERROR, something went wrong")
+
+
+def download_metric_sample(remote_url=None, local_path=None):
+    """Download a sample metric case"""
+    if remote_url is None:
+        remote_url = "https://github.com/phamquiluan/baro/releases/download/0.0.4/simple_data.csv"
+    if local_path is None:
+        local_path = "data.csv"
+
+    download_data(remote_url, local_path)
+    
+
+def download_multi_source_sample(local_path=None):
+    """Download a sample multi-source telemetry data case"""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "multi-source-data")):
+        return
+    
+    download_data("https://github.com/phamquiluan/RCAEval/releases/download/0.2.0/multi-source-data.zip", "multi-source-data.zip")
+    with zipfile.ZipFile("multi-source-data.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("multi-source-data.zip")
+
+
+def download_online_boutique_dataset(local_path=None):
+    """Download the Online Boutique dataset from Zenodo."""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "online-boutique")):
+        return
+    download_data("https://zenodo.org/records/13305663/files/online-boutique.zip?download=1", "online-boutique.zip")
+    with zipfile.ZipFile("online-boutique.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("online-boutique.zip")
+    
+    
+def download_sock_shop_1_dataset(local_path=None):
+    """Download the Sock Shop 1 dataset from Zenodo."""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "sock-shop-1")):
+        return
+    download_data("https://zenodo.org/records/13305663/files/sock-shop-1.zip?download=1", "sock-shop-1.zip")
+    with zipfile.ZipFile("sock-shop-1.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("sock-shop-1.zip")
+
+    
+def download_sock_shop_2_dataset(local_path=None):
+    """Download the Sock Shop 2 dataset from Zenodo."""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "sock-shop-2")):
+        return
+    download_data("https://zenodo.org/records/13305663/files/sock-shop-2.zip?download=1", "sock-shop-2.zip")
+    with zipfile.ZipFile("sock-shop-2.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("sock-shop-2.zip")
+    
+
+def download_train_ticket_dataset(local_path=None):
+    """Download the Train Ticket dataset from Zenodo."""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "train-ticket")):
+        return
+    download_data("https://zenodo.org/records/13305663/files/train-ticket.zip?download=1", "train-ticket.zip")
+    with zipfile.ZipFile("train-ticket.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("train-ticket.zip")
+    
+
+def download_re1ob_dataset(local_path=None):
+    """Download the RE1 dataset, Online Boutique system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE1")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE1-OB")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE1-OB.zip?download=1", "RE1-OB.zip")
+    with zipfile.ZipFile("RE1-OB.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE1-OB.zip")
+
+
+def download_re1ss_dataset(local_path=None):
+    """Download the RE1 dataset, Sock Shop system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE1")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE1-SS")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE1-SS.zip?download=1", "RE1-SS.zip")
+    with zipfile.ZipFile("RE1-SS.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE1-SS.zip")
+    
+
+def download_re1tt_dataset(local_path=None):
+    """Download the RE1 dataset, Train Ticket system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE1")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE1-TT")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE1-TT.zip?download=1", "RE1-TT.zip")
+    with zipfile.ZipFile("RE1-TT.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE1-TT.zip")
+    
+
+def download_re1_dataset(local_path=None):
+    """Download the RE1 dataset from Zenodo."""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    
+    RE1_local_path = join(local_path, "RE1")
+    if os.path.exists(RE1_local_path):
+        return
+
+    download_re1ob_dataset(local_path=RE1_local_path)
+    download_re1ss_dataset(local_path=RE1_local_path)
+    download_re1tt_dataset(local_path=RE1_local_path)
+
+
+def download_re2ob_dataset(local_path=None):
+    """Download the RE2 dataset, Online Boutique system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE2")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE2-OB")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE2-OB.zip?download=1", "RE2-OB.zip")
+    with zipfile.ZipFile("RE2-OB.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE2-OB.zip")    
+
+
+def download_re2ss_dataset(local_path=None):
+    """Download the RE2 dataset, Sock Shop system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE2")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE2-SS")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE2-SS.zip?download=1", "RE2-SS.zip")
+    with zipfile.ZipFile("RE2-SS.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE2-SS.zip")    
+    
+
+def download_re2tt_dataset(local_path=None):
+    """Download the RE2 dataset, Train Ticket system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE2")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE2-TT")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE2-TT.zip?download=1", "RE2-TT.zip")
+    with zipfile.ZipFile("RE2-TT.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE2-TT.zip")    
+    
+
+def download_re2_dataset(local_path=None):
+    """Download the RE2 dataset from Zenodo."""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    
+    RE2_local_path = join(local_path, "RE2")
+    if os.path.exists(RE2_local_path):
+        return
+    
+    download_re2ob_dataset(local_path=RE2_local_path)
+    download_re2ss_dataset(local_path=RE2_local_path)
+    download_re2tt_dataset(local_path=RE2_local_path)
+        
+
+def download_re3ob_dataset(local_path=None):
+    """Download the RE3 dataset, Online Boutique system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE3")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE3-OB")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE3-OB.zip?download=1", "RE3-OB.zip")
+    with zipfile.ZipFile("RE3-OB.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE3-OB.zip")
+    
+
+def download_re3ss_dataset(local_path=None):
+    """Download the RE3 dataset, Sock Shop system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE3")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE3-SS")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE3-SS.zip?download=1", "RE3-SS.zip")
+    with zipfile.ZipFile("RE3-SS.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE3-SS.zip")
+    
+
+def download_re3tt_dataset(local_path=None):
+    """Download the RE3 dataset, Train Ticket system from Zenodo."""
+    if local_path == None:
+        local_path = join("data", "RE3")
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+    if os.path.exists(join(local_path, "RE3-TT")):
+        return
+    download_data("https://zenodo.org/records/14590730/files/RE3-TT.zip?download=1", "RE3-TT.zip")
+    with zipfile.ZipFile("RE3-TT.zip", 'r') as file:
+        file.extractall(local_path)
+    os.remove("RE3-TT.zip")
+    
+
+def download_re3_dataset(local_path=None):
+    """Download the RE3 dataset from Zenodo."""
+    if local_path == None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+
+    RE3_local_path = join(local_path, "RE3")
+    if os.path.exists(RE3_local_path):
+        return
+
+    download_re3ob_dataset(local_path=RE3_local_path)
+    download_re3ss_dataset(local_path=RE3_local_path)
+    download_re3tt_dataset(local_path=RE3_local_path)
+
+
+def download_eventadl_dataset(name=None, local_path=None):
+    """Download the EventADL datasets (falcon, flask, live) from Zenodo.
+
+    The Zenodo artifact (https://zenodo.org/records/19433493) ships a single
+    EventADL.zip bundling both code and data. Only the files RCAEval needs are
+    extracted — per-case event logs (events/{id}.json) and ground truth
+    (rca.json) — into data/eventadl-<name>/; the code and the
+    anomaly-detection-side files (log.csv, events.json, monitors.json) are
+    discarded along with the archive.
+    """
+    import shutil
+    import tempfile
+
+    names = [name] if name else ["falcon", "flask", "live"]
+    if local_path is None:
+        local_path = "data"
+    if not os.path.exists(local_path):
+        os.makedirs(local_path)
+
+    names = [n for n in names if not os.path.exists(join(local_path, f"eventadl-{n}"))]
+    if not names:
+        return
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        zip_path = join(tmpdir, "EventADL.zip")
+        download_data(
+            "https://zenodo.org/records/19433493/files/EventADL.zip?download=1",
+            zip_path,
+        )
+        with zipfile.ZipFile(zip_path) as zf:
+            for n in names:
+                prefix = f"EventADL/data/{n}/"
+                members = [
+                    m for m in zf.namelist()
+                    if m == prefix + "rca.json"
+                    or (m.startswith(prefix + "events/") and m.endswith(".json"))
+                ]
+                staging = join(tmpdir, f"eventadl-{n}")
+                for member in members:
+                    target = join(staging, os.path.relpath(member, prefix))
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    with zf.open(member) as src, open(target, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                # move into place only once fully extracted, so an interrupted
+                # run doesn't leave a partial dataset that later calls skip
+                shutil.move(staging, join(local_path, f"eventadl-{n}"))
+
+
+def read_data(data_path, strip=True):
+    """Read CSV data for root cause analysis."""
+    data = pd.read_csv(data_path)
+    data_dir = os.path.dirname(data_path)
+
+    ############# PREPROCESSING ###############
+    if "time.1" in data:
+        data = data.drop(columns=["time.1"])
+    data = data.replace([np.inf, -np.inf], np.nan)
+    data = data.ffill()
+    data = data.fillna(0)
+
+    # remove latency-50 columns
+    data = data.loc[:, ~data.columns.str.endswith("latency-50")]
+    # rename latency-90 columns to latency
+    data = data.rename(
+        columns={
+            c: c.replace("_latency-90", "_latency")
+            for c in data.columns
+            if c.endswith("_latency-90")
+        }
+    )
+
+    return data
+
+

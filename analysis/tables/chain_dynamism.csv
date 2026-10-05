@@ -1,0 +1,4 @@
+load,traces,len_mean,len_max,distinct_paths,distinct_ratio,path_entropy_bits
+1 user,46,2.83,7,12,0.32,3.37
+3 users,122,2.63,6,16,0.15,3.7
+5 users,173,2.98,9,22,0.15,3.79

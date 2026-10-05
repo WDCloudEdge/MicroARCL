@@ -1,0 +1,2 @@
+MARBLEBench: samples=90, median ΔR² nonedge=-0.0004, edge=-0.0009, paired difference=-0.0003; deep-path samples=88, depth=5, first/deep median=12.3/31.8s
+MDOC: samples=120, median ΔR² nonedge=-0.0002, edge=-0.0006, paired difference=-0.0002; deep-path samples=100, depth=7, first/deep median=11.9/43.7s

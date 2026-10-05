@@ -11,7 +11,7 @@ Pipeline (v1, single `agent-network` namespace, label-free):
      the cross-service shared error signature, and run LLM fine-grained
      localization (OpenAI-compatible; mockable).
 
-Expected result on the provided thingo sample: root cause = LLM quota
+Expected result on the provided MDOC sample: root cause = LLM quota
 exhausted (systemic), not a single service.
 
 Run:  .venv/bin/python run_agent_rca.py

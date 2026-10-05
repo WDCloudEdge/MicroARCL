@@ -1,0 +1,7 @@
+run,pods,vCPU_mean,mem_mean
+1 user single,13,0.23,10.9
+1 user multi,18,0.42,16.5
+3 users single,13,0.38,17.0
+3 users multi,18,0.5,35.3
+5 users single,13,0.28,12.0
+5 users multi,18,0.54,16.3
