@@ -6,6 +6,7 @@
 
 MicroARCL is an unsupervised root cause localization method for microservice-based agent systems. This repository accompanies the paper *Root Cause Localization for Microservice-based Agent Systems*, which also introduces **MicroASBench**, a benchmark for studying failures in deployable agent services.
 
+
 ## Paper overview
 
 Agent services invoke different tools and other services for different requests. Their execution paths are dynamic, observations are sparse and heterogeneous, and stages finish asynchronously. During a failure, shared load changes and delays along a request path can make affected services look more suspicious than the actual root cause. The paper characterizes these behaviors with MicroASBench and develops MicroARCL to rank root-cause services from monitoring data and real request paths, without historical failure labels, model training, or manually supplied failure windows.
@@ -14,20 +15,16 @@ Agent services invoke different tools and other services for different requests.
 
 MicroASBench combines deployable agent services, configurable workloads and replica settings, controlled failure injection, and aligned observations with root-cause labels for evaluation.
 
+
 - **Systems:** 13 services in MDOC, a multimodal document assistant, and 9 services in MAR, adapted from MARBLE. They run alongside 81 conventional microservices in separate namespaces.
 - **Workloads:** simple and composed agent tasks with request-dependent service activation; failure experiments use 3 or 5 concurrent users and single- or multi-replica deployments.
-- **Faults:** CPU stress, memory stress, network delay, pod failure, and pod kill. The paper reports 240 failure runs across MDOC and MAR.
+- **Failures:** CPU stress, memory stress, network delay, pod failure, and pod kill. The paper reports 240 failure runs across MDOC and MAR.
 - **Observations:** service, instance, and node metrics sampled every 5 seconds, container logs, and request-level execution graphs. The graphs preserve service order, stage duration, tool invocations, and other agent-execution details. Failure labels are used for evaluation, not localization.
 
 ### Dataset
 
-The dataset release information will be added here.
-
-| Item | MDOC | MAR |
-| --- | --- | --- |
-| Download | To be added | To be added |
-| Data format and schema | To be added | To be added |
-| Preparation instructions | To be added | To be added |
+MDOC and MAR download: https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL
+SS, TT, and OB download: https://github.com/phamquiluan/RCAEval
 
 ## MicroARCL framework
 
@@ -41,17 +38,99 @@ MicroARCL takes telemetry and request-level execution paths as input and returns
 
 The paper evaluates MicroARCL against five unsupervised root cause localization baselines. On the two MicroASBench agent-service datasets, it reports:
 
-| Dataset | MicroARCL ACC@1 | Strongest baseline ACC@1 | MicroARCL MRR | Mean localization time |
-| --- | ---: | ---: | ---: | ---: |
-| MDOC | 0.500 | 0.333 (MicroRCA) | 0.634 | 5.314 s |
-| MAR | 0.492 | 0.283 (MicroRCA) | 0.680 | 0.648 s |
-| Average across MDOC and MAR | **0.496** | **0.308** | **0.657** | — |
+| Dataset | MicroARCL ACC@1 | MicroARCL MRR | Mean localization time |
+| --- | ---: | ---: | ---: |
+| MDOC | 0.500 | 0.634 | 5.314 s |
+| MAR | 0.492 | 0.680 | 0.648 s |
+| Average across MDOC and MAR | **0.496** | **0.657** | — |
 
 The average ACC@1 gain over the strongest baseline is **18.8 percentage points**. Ablation results show that candidate detection, reliability weighting, and request-level lag correction each contribute to accuracy. The paper also evaluates conventional microservice datasets (SockShop, Online Boutique, and TrainTicket), where MicroARCL achieves ACC@1 scores of 0.978, 0.833, and 0.456, respectively.
 
+## Reproducing the paper (RQ1–RQ7)
+
+Run from the repository root. Use Python 3.10.
+
+```bash
+python3.10 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
+Data: [MDOC/MAR](https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL) → `data/MDOC/`, `data/MARBLEBench/`; [RCAEval](https://github.com/phamquiluan/RCAEval) → `data/RCAEval/`. Dataset names: `MAR` = `MARBLEBench`; `SS`/`OB`/`TT` = `re2ss`/`re2ob`/`re2tt`.
+
+### RQ1 Scripts
+
+```text
+analysis/motivation_analysis.py
+analysis/chain_analysis.py
+analysis/multi_replica_recheck.py
+analysis/marblebench_stats.py
+```
+
+```bash
+./.venv/bin/python analysis/marblebench_stats.py
+```
+
+### RQ2 Scripts
+
+```text
+analysis/diag_common_mode.py
+analysis/diag_temporal.py
+analysis/prepare_spatial_lag.py
+analysis/plot_spatial_lag.py
+```
+
+RQ1 and RQ2 entry point:
+
+```bash
+./.venv/bin/python analysis/run_all.py
+```
+
+Outputs: `analysis/figures/`, `analysis/tables/`, `data/<dataset>/diag_common_mode_*.csv`.
+
+### RQ3, RQ4, and RQ6 Scripts
+
+```text
+experiments/run_microarcl.py
+experiments/run_baselines.py
+```
+
+```bash
+./.venv/bin/python experiments/run_microarcl.py --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline TORAI --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline MicroRCA --dataset all
+```
+
+`--dataset`: `all`, `MDOC`, `MAR`, `SS`, `OB`, `TT`. MicroRCA skips `SS`.
+
+Logs: `data/<dataset>/abnormal/` (MDOC/MAR), `output/re2_materialized/` (SS/OB/TT).
+
+### RQ5 Scripts
+
+```text
+experiments/run_ablation.py
+```
+
+```bash
+./.venv/bin/python experiments/run_ablation.py --dataset all
+```
+
+`--dataset`: `all`, `MDOC`, `MAR`; `--variant`: `all`, `full`, `MicroARCL-A`, `MicroARCL-W`, `MicroARCL-L`.
+
+### RQ7 Scripts
+
+```text
+experiments/run_sensitivity.py
+```
+
+```bash
+./.venv/bin/python experiments/run_sensitivity.py --dataset all
+```
+
+`--dataset`: `all`, `MDOC`, `MAR`; `--sweep`: `all`, `k`, `mu`. All experiment runners accept `--limit N` and `--help`.
+
 ## Future research
 
-The paper identifies broader evaluation as the next step: extend MicroASBench with more agent applications and agent-specific fault types, and test localization on production failures.
+Future work will extend MicroASBench with more agent applications and agent-specific failure types, and further evaluate root cause localization performance.
 
 ## License
 
