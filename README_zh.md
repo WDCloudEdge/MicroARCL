@@ -21,13 +21,9 @@ MicroASBench 将可部署的 Agent 服务、可配置的工作负载与副本设
 
 ### 数据集
 
-数据集发布信息将在此补充。
+MDOC 和 MAR 下载地址: https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL
+SS TT OB下载地址: https://github.com/phamquiluan/RCAEval
 
-| 项目 | MDOC | MAR |
-| --- | --- | --- |
-| 下载地址 | 待补充 | 待补充 |
-| 数据格式与字段说明 | 待补充 | 待补充 |
-| 数据准备说明 | 待补充 | 待补充 |
 
 ## MicroARCL 框架
 
@@ -41,17 +37,99 @@ MicroARCL 以监控数据和请求级执行路径为输入，输出根因服务�
 
 论文将 MicroARCL 与五种无监督故障根因定位基线比较。在 MicroASBench 的两个 Agent 服务数据集上，结果如下：
 
-| 数据集 | MicroARCL ACC@1 | 最强基线 ACC@1 | MicroARCL MRR | 平均定位耗时 |
-| --- | ---: | ---: | ---: | ---: |
-| MDOC | 0.500 | 0.333（MicroRCA） | 0.634 | 5.314 秒 |
-| MAR | 0.492 | 0.283（MicroRCA） | 0.680 | 0.648 秒 |
-| MDOC 与 MAR 平均 | **0.496** | **0.308** | **0.657** | — |
+| 数据集 | MicroARCL ACC@1 | MicroARCL MRR | 平均定位耗时 |
+| --- | ---: | ---: | ---: |
+| MDOC | 0.500 | 0.634 | 5.314 秒 |
+| MAR | 0.492 | 0.680 | 0.648 秒 |
+| MDOC 与 MAR 平均 | **0.496** | **0.657** | — |
 
 相较最强基线，平均 ACC@1 **提高 18.8 个百分点**。消融实验表明，候选检测、可靠性加权和请求级延迟校正都对定位准确率有贡献。论文还在传统微服务数据集 SockShop、Online Boutique 和 TrainTicket 上评估了 MicroARCL，其 ACC@1 分别为 0.978、0.833 和 0.456。
 
+## 论文复现（RQ1–RQ7）
+
+在仓库根目录运行，使用 Python 3.10。
+
+```bash
+python3.10 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
+数据：[MDOC/MAR](https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL) → `data/MDOC/`、`data/MARBLEBench/`；[RCAEval](https://github.com/phamquiluan/RCAEval) → `data/RCAEval/`。数据集名称：`MAR` = `MARBLEBench`；`SS`/`OB`/`TT` = `re2ss`/`re2ob`/`re2tt`。
+
+### RQ1 脚本
+
+```text
+analysis/motivation_analysis.py
+analysis/chain_analysis.py
+analysis/multi_replica_recheck.py
+analysis/marblebench_stats.py
+```
+
+```bash
+./.venv/bin/python analysis/marblebench_stats.py
+```
+
+### RQ2 脚本
+
+```text
+analysis/diag_common_mode.py
+analysis/diag_temporal.py
+analysis/prepare_spatial_lag.py
+analysis/plot_spatial_lag.py
+```
+
+RQ1 和 RQ2 运行入口：
+
+```bash
+./.venv/bin/python analysis/run_all.py
+```
+
+输出：`analysis/figures/`、`analysis/tables/`、`data/<dataset>/diag_common_mode_*.csv`。
+
+### RQ3、RQ4、RQ6 脚本
+
+```text
+experiments/run_microarcl.py
+experiments/run_baselines.py
+```
+
+```bash
+./.venv/bin/python experiments/run_microarcl.py --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline TORAI --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline MicroRCA --dataset all
+```
+
+`--dataset`：`all`、`MDOC`、`MAR`、`SS`、`OB`、`TT`。MicroRCA 自动跳过 `SS`。
+
+日志：`data/<dataset>/abnormal/`（MDOC/MAR）、`output/re2_materialized/`（SS/OB/TT）。
+
+### RQ5 脚本
+
+```text
+experiments/run_ablation.py
+```
+
+```bash
+./.venv/bin/python experiments/run_ablation.py --dataset all
+```
+
+`--dataset`：`all`、`MDOC`、`MAR`；`--variant`：`all`、`full`、`MicroARCL-A`、`MicroARCL-W`、`MicroARCL-L`。
+
+### RQ7 脚本
+
+```text
+experiments/run_sensitivity.py
+```
+
+```bash
+./.venv/bin/python experiments/run_sensitivity.py --dataset all
+```
+
+`--dataset`：`all`、`MDOC`、`MAR`；`--sweep`：`all`、`k`、`mu`。所有实验入口均支持 `--limit N` 和 `--help`。
+
 ## 未来研究方向
 
-论文计划扩展 MicroASBench，加入更多 Agent 应用和 Agent 特有的故障类型，并在生产环境故障上进一步评估根因定位效果。
+计划扩展 MicroASBench，加入更多 Agent 应用和 Agent 特有的故障类型，进一步评估根因定位效果。
 
 ## 许可证
 
