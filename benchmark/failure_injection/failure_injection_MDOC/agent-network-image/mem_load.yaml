@@ -1,0 +1,17 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: memory-3
+  namespace: chaos-mesh
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - 'agent-network'
+    labelSelectors:
+      'app': 'agent-network-image'
+  stressors:
+    memory:
+      workers: 1
+      size: 2Gi
+  duration: '3m'

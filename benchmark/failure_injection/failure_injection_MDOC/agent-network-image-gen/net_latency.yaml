@@ -1,0 +1,18 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: delay-2
+  namespace: chaos-mesh
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+      - 'agent-network'
+    labelSelectors:
+      'app': 'agent-network-image-gen'
+  delay:
+    latency: '1000ms'
+    correlation: '100'
+    jitter: '0ms'
+  duration: '3m'

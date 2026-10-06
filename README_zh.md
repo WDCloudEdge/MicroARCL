@@ -19,6 +19,46 @@ MicroASBench 将可部署的 Agent 服务、可配置的工作负载与副本设
 - **故障：**CPU 压力、内存压力、网络延迟、Pod 故障和 Pod 删除。论文报告了 MDOC 与 MAR 共 240 次故障运行。
 - **观测数据：**每 5 秒采样的服务、实例和节点指标，容器日志，以及请求级执行图。执行图保留服务顺序、阶段耗时、工具调用等 Agent 执行细节。故障标签仅用于评估，不参与定位。
 
+### k8s基础环境搭建
+
+`benchmark/k8s-base-deploy`中包含了81个混合部署的传统微服务系统（包含bookinfo、sockshop、onlineBoutique、trainticket），以及istio、prometheus、jaeger等基础服务管理和监控设施
+
+### 多智能体服务基础调度及执行框架镜像构建及运行
+
+多智能体服务化的基础框架，必须在一台宿主机上先行启动以支撑整个k8s集群多智能体服务调度、协同、文件存储和监控
+
+详见`benchmark/scheduler/README.md`
+
+### 负载注入、故障注入和数据收集
+
+需要设置的环境变量:
+
+1. `$HOST_IP$`：多智能体服务基础调度及执行框架所在宿主机IP
+
+MDOC:
+`benchmark/failure_injection/failure_injection_MDOC/run_all_services.sh`
+
+MAR:
+`benchmark/failure_injection/failure_injection_MARBLEbench/run_all_services.sh`
+
+单服务故障：
+`benchmark/failure_injection/failure_injection_{DATASET}/sum_chaos_cloud_{service}.sh`
+
+脚本会自动完成包括MDOC或MAR多智能体服务集群启动、locust负载注入、chaos_mesh故障yaml注入和`benchmark/data-collector` metrics、logs和执行图数据收集全过程，收集到的数据位于`benchmark/data`中，与下文已收集并公开的数据集格式一致。
+
+需要替换或设置的环境变量：
+
+- `benchmark/failure_injection/failure_injection_MDOC/deployments.yaml`
+- `benchmark/failure_injection/failure_injection_MARBLEbench/deployments.yaml`
+
+1. `$HOST_IP$`：多智能体服务基础调度及执行框架所在宿主机IP
+2. `$OPENAI_API_KEY$`：大模型API KEY
+
+可选
+
+3. 大模型BaseUrl和具体模型，当前使用为qwen系列模型和阿里云平台base url
+
+
 ### 数据集
 
 MDOC 和 MAR 下载地址: https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL
@@ -89,19 +129,23 @@ RQ1 和 RQ2 运行入口：
 ### RQ3、RQ4、RQ6 脚本
 
 ```text
-experiments/run_microarcl.py
-experiments/run_baselines.py
+experiments/run_microarcl.py                 # 驱动（MicroARCL）
+experiments/run_baselines.py                 # 驱动（对比方法）
+experiments/microarcl/                       # MicroARCL runner 入口脚本
+experiments/baselines/{torai,microrca,causalrca}/   # 各对比方法 runner
 ```
 
 ```bash
 ./.venv/bin/python experiments/run_microarcl.py --dataset all
 ./.venv/bin/python experiments/run_baselines.py --baseline TORAI --dataset all
 ./.venv/bin/python experiments/run_baselines.py --baseline MicroRCA --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline CausalRCA --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline CloudRanger --dataset all
 ```
 
-`--dataset`：`all`、`MDOC`、`MAR`、`SS`、`OB`、`TT`。MicroRCA 自动跳过 `SS`。
+`--dataset`：`all`、`MDOC`、`MAR`、`SS`、`OB`、`TT`。`--baseline`：`MicroRCA`（无 trace，跳过 `SS`）、`TORAI`、`CausalRCA`（DAG-GNN）、`CloudRanger`（PC）。都在同一 `.venv`；共享引擎（`baseline_common.py`、`Config.py` 等）留在仓库根，runner 自行把它加入 `sys.path`。
 
-日志：`data/<dataset>/abnormal/`（MDOC/MAR）、`output/re2_materialized/`（SS/OB/TT）。
+日志：`data/<dataset>/abnormal/`（MDOC/MAR）、`output/re2_materialized/`（SS/OB/TT）、`experiments/baselines/causalrca/{RCAEval/re2,MicroCERC}/`（CausalRCA/CloudRanger）。
 
 ### RQ5 脚本
 

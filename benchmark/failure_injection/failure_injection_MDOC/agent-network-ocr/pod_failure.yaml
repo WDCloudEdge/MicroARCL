@@ -1,0 +1,14 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: pod-failure
+  namespace: chaos-mesh
+spec:
+  action: pod-failure
+  mode: one
+  duration: '5m'
+  selector:
+    namespaces:
+      - 'agent-network'
+    labelSelectors:
+      'app': 'agent-network-ocr'
