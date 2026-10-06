@@ -1,25 +1,39 @@
-# 构建和运行多智能体服务基础调度及执行框架
+# Build and Run the Multi-Agent Service Scheduling and Execution Framework
 
-## 简介
-多智能体服务基础调度及执行框架包含以下四部分，能够支撑服务化（容器化部署）多智能体系统的运行，协同，上下文管理和多模态文件存储。MDOC和MAR多智能体服务系统均以此为基础设施快速接入、搭建和运行。
-1. 关系型数据库MySQL：管理和存储任务执行状态和执行图地址
-2. 调度器及文件存储Java服务center、taskScheduling和storage：多智能体调度器和文件存储服务封装
-3. 多模态对象存储MinIO：存储执行图graph.json及多智能体产生的所有多模态文件
-4. 多智能体服务注册与发现中心Nacos：管理和维护多智能体服务动态发现和协同寻址
+[English](README.md) | [中文](README_zh.md)
 
-## 构建方式
-该多智能体服务基础调度及执行框架以Docker形式构建和运行，具体使用的运行环境及版本：
-该镜像基于 **Ubuntu:18.04**，集成并运行以下组件：**Java 1.8**、**MySQL 5.7、Nacos 2.4.3、MinIO、Eureka（center.jar）、storage.jar 和 taskScheduling.jar**。三个 JAR 均使用 `exp` Spring Profile 启动；Nacos 以 standalone 模式运行。MinIO 在镜像构建时从官方源码编译最新社区版。
+## Overview
 
-在本目录执行：
+The multi-agent service scheduling and execution framework consists of four parts. It supports the operation, coordination, context management, and multimodal file storage of service-based (containerized) multi-agent systems. Both the MDOC and MAR multi-agent service systems use it as infrastructure for rapid integration, deployment, and operation.
+
+1. **MySQL relational database:** Manages and stores task execution states and execution graph locations.
+2. **Java scheduling and file-storage services (`center`, `taskScheduling`, and `storage`):** Provide multi-agent scheduling and file-storage services.
+3. **MinIO multimodal object storage:** Stores the execution graph (`graph.json`) and all multimodal files produced by the agents.
+4. **Nacos service registry and discovery center:** Manages dynamic discovery and coordinated addressing for multi-agent services.
+
+## Build and Run
+
+This framework is built and run with Docker. The image is based on **Ubuntu 18.04** and includes **Java 1.8, MySQL 5.7, Nacos 2.4.3, MinIO, Eureka (`center.jar`), `storage.jar`, and `taskScheduling.jar`**. All three JARs start with the `exp` Spring profile. Nacos runs in standalone mode. During the image build, MinIO is compiled from the latest official community-edition source code.
+
+### Download the required large files
+
+Download the files from:
+
+https://www.dropbox.com/scl/fi/654n537pu02rgb7tjj454/scheduler_bf.zip?rlkey=tgn6jc32puy2quvbixhtvydvl&st=ivo9nw0k&dl=0
+
+After downloading, place them in the `benchmark/scheduler` directory.
+
+### Build the Docker image
+
+Run these commands from this directory:
 
 ```bash
 docker build --platform linux/amd64 -t microcerc-scheduler .
-# 可选使用docker命名卷挂载
+# Optionally create Docker named volumes
 # docker volume create microcerc-mysql
 # docker volume create microcerc-minio
 
-# 当前指令使用绑定挂载方式
+# The following command uses bind mounts
 docker run -d --platform linux/amd64 --name microcerc-scheduler --restart unless-stopped \
   -e HOST_IP=192.168.0.109 \
   -v /your_local_dir/mysql:/var/lib/mysql \
@@ -30,13 +44,9 @@ docker run -d --platform linux/amd64 --name microcerc-scheduler --restart unless
   microcerc-scheduler
 ```
 
-`HOST_IP` 应为容器可以被访问的宿主机地址。启动脚本会把 `minio.agent.network.com`、`db.agent.network.com`、`taskscheduling.agent.network.com` 和 `center.agent.network.com` 映射到此地址。容器外的各台K8S节点也需要自行配置这些域名的解析，使K8S中各智能体服务pod能够访问该容器以进行多智能体调度和文件存储。
+Set `HOST_IP` to the host address through which the container can be reached. The startup script maps `minio.agent.network.com`, `db.agent.network.com`, `taskscheduling.agent.network.com`, and `center.agent.network.com` to this address. Configure DNS resolution for these domains on each K8s node outside the container as well, so agent service pods in K8s can reach the container for multi-agent scheduling and file storage.
 
-MinIO 启动时固定使用 `storage.jar` 的 `exp` 配置中已有的两项凭证：`AKIAIOSFODNN7EXAMPLE` 和 `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`。
-
-MySQL 首次启动时以空密码创建 root 用户、`taskScheduling` 数据库并导入 `taskScheduling.sql`。数据库及 MinIO 文件使用上面的 Docker volume 保存。Nacos 在 standalone 模式下使用内嵌存储，并保持压缩包中的默认认证设置（关闭认证）。
-
-查看启动日志：
+View the startup logs:
 
 ```bash
 docker logs -f microcerc-scheduler
