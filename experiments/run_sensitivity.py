@@ -1,23 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""RQ7 -- MicroARCL parameter sensitivity on the agent datasets (MDOC / MAR).
-
-Two one-dimensional sweeps around the final operating point (the only two
-parameters of the method):
-
-  * candidate budget k  in {5, 10, 15, 20, 25}   (mu fixed at 1.0)
-  * lag coefficient mu  in {0.0, 0.25, 0.5, 0.75, 1.0}  (k fixed at the
-    dataset's final value: MAR 5, MDOC 15)
-
-Each point reuses experiments/_agent_runner.py (detector=abirch, fuse=wsum),
-so the pipeline is identical to run_microarcl.py; only k or mu moves. Each run
-writes its own tagged batch log; read ACC@1/ACC@3/MRR off them to plot the
-sensitivity curves.
-
-Usage:
-  python experiments/run_sensitivity.py --dataset all
-  python experiments/run_sensitivity.py --dataset MDOC --sweep k --limit 3
-"""
+"""RQ7 -- MicroARCL parameter sensitivity on the agent datasets (MDOC / MAR)."""
 import os
 import sys
 import subprocess

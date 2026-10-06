@@ -1,34 +1,4 @@
-"""
-Convert the raw MicroARCL "agent-network" dataset (agent service dataset) into the
-preprocessed .pkl format expected by LagRCA:
-
-  data/agent/normal_data.pkl  -> DataFrame [timestamp, <metric>&<instance> ...]
-  data/agent/adj.pkl          -> torch.FloatTensor [N, N]
-  data/agent/case_data.pkl    -> list of [df, label, ts]
-
-Three instance tiers:
-  * service : 13 agent-network-* services  (svc_metric.csv, 10 metrics each)
-  * pod     : per-service pod slots (instance.csv: cpu / memory / network)
-  * node    : 9 physical nodes             (node.csv: cpu/memory/network_x/network_y)
-
-Pod-tier handling for topology changes (scaling / pod_kill):
-  Within one collection a service may expose >1 pod. We classify them:
-    - kill-replace  (a pod is born late or dies early -> a long leading/trailing
-                     run of zeros): keep the pods as SEPARATE slots (union). The
-                     absent lifetime is marked and becomes the sentinel -1 after
-                     scaling. Slots ordered by first-active time (slot0 = original
-                     / killed pod, slot1 = replacement).
-    - concurrent    (all pods active over the whole window = true replicas):
-                     AVERAGE them into a single slot.
-  The number of pod slots per service = max slots any single collection needs
-  (so train/test stay dimensionally identical); unused slots are fully absent (-1).
-
-Pod-metric scaling is shared per (service, metric) across a service's slots, so a
-slot that is absent in normal but active in a test case is still scaled consistently.
-
-Adjacency (faithful reproduction): service<->pod slots + pod<->node (union of the
-placements each service was ever observed on, from graph.csv) + self loops.
-"""
+"""Convert the raw MicroARCL "agent-network" dataset (agent service dataset) into the preprocessed .pkl format expected by LagRCA:"""
 import os
 import glob
 import pickle

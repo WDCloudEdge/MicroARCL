@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Run PC+PageRank or CausalRCA (DAG-GNN+PageRank) on RCAEval RE2.
-
-The case logs and summary match the MicroARCL agent scripts. A completed case
-log is reused on restart, which matters for the longer DAG-GNN experiment.
-"""
+"""Run PC+PageRank or CausalRCA (DAG-GNN+PageRank) on RCAEval RE2."""
 
 import argparse
 import os

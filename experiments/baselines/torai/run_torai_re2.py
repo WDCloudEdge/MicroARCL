@@ -1,29 +1,5 @@
 #!/usr/bin/env python
-"""Run RCAEval's TORAI on the RCAEval RE2 datasets (re2ob / re2ss / re2tt),
-metrics-only, with the same three onset modes as run_torai_agent.py:
-
-  label    : ground-truth inject_time.txt (supervised, oracle split)
-  auto     : TORAI's own unsupervised detector on the metrics (detect_onset)
-  adaptive : the main-line method's adaptive_window (Module B.0). Each RE2 case is
-             materialized into the MicroARCL on-disk layout by re2_adapter
-             (exactly as run_all_abnormal_RE2_birch_align_MicroARCL.py does), then
-             adaptive_window runs byte-for-byte unchanged on it; its window start
-             is used as inject_time.
-
-Metrics only: RE2 metrics.json already carries cpu / mem / diskio / latency /
-error / workload / socket per service, which is enough for TORAI's per-modality
-metric scoring. The log and trace modalities are left empty (a time-only logts is
-passed so TORAI's within-cluster RCD does not choke on an empty frame).
-
-This file is new and does not modify the MicroARCL pipeline; it only imports
-re2_adapter (case discovery / metric reading / MicroARCL materialization) and the
-TORAI helpers from run_torai_agent.
-
-Output: ACC@1-10 / AVG@1-10 / MRR, per-fault + per-suite (re2ob/ss/tt) + OVERALL,
-identical in format to run_torai_agent.py.
-
-Run under RCAEval's .venv-torai (py3.8 + patched causal-learn).
-"""
+"""Run RCAEval's TORAI on the RCAEval RE2 datasets (re2ob / re2ss / re2tt), metrics-only, with the same three onset modes as run_torai_agent.py:"""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

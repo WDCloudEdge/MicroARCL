@@ -1,34 +1,4 @@
-"""Reliability-aware evidence fusion for root-cause localization.
-
-Replaces the hand-set fusion coefficients (severity's w_res/w_qps and the
-localizer's lam/mu) with per-signal weights that are DERIVED FROM THE CURRENT
-OBSERVATION, not tuned on a dataset. Each telemetry modality m (failure,
-latency, cpu, mem, net, qps, residual) votes a per-service ranking r_m(s); the
-votes are combined by reliability-weighted Reciprocal Rank Fusion:
-
-    Score(s) = sum_m  q_hat_m / (k + r_m(s))
-
-The reliability q_m of a signal is q_m = C_m * E_m, the product of two
-complementary, observation-dependent properties (both in [0,1]):
-
-  * abnormality confidence  C_m = 1 - exp(-max_s z_m(s))
-        -- does the signal significantly leave its NORMAL baseline at all?
-  * candidate concentration E_m = 1 - H(softmax z_m)/log N
-        -- does the signal point discriminatively at few services, or is it
-           diffuse noise?
-
-z_m(s) is a ROBUST (median/MAD) deviation of service s from its own pre-window
-normal baseline, with a relative floor on the scale so a near-constant baseline
-cannot explode into spurious huge z (the failure mode of naive std-scaling).
-
-Because q_m = q_m(X) is instance-adaptive, a network-delay fault automatically
-up-weights latency and down-weights cpu, an availability fault up-weights
-failure, etc., WITHOUT any dataset-specific coefficient. The three ablation
-variants are exposed via `variant`:
-    'concentration' -> q = E_m
-    'confidence'    -> q = C_m
-    'both'          -> q = C_m * E_m   (default; most complete semantics)
-"""
+"""Reliability-aware evidence fusion for root-cause localization."""
 import os
 import math
 from typing import Dict, List, Callable, Optional

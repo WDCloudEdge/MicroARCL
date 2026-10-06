@@ -1,13 +1,4 @@
-"""Personalized PageRank baseline for agent-service root-cause localization.
-
-Comparison method for the GNN ranker. It reuses the *exact same* graph
-construction (``agent_gnn.build_graphs``) and severity prior
-(``agent_gnn._build_node_severity``) as the main pipeline, so the only thing
-that differs is the ranker itself: each node's severity becomes its
-personalization value and a random walk with restart (Personalized PageRank) is
-iterated over the topology until the node probabilities converge; the converged
-scores give the top-k ranking.
-"""
+"""Personalized PageRank baseline for agent-service root-cause localization."""
 from typing import Dict, Optional, Tuple
 
 import networkx as nx

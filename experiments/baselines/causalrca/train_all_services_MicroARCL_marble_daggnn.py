@@ -1,22 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Faithful CausalRCA (DAG-GNN + PageRank) on the agent-service dataset.
-
-Unlike train_all_services_MicroARCL_agent.py (which uses the PC algorithm for
-causal discovery), this script uses the paper author's original DAG-GNN
-gradient-based structure learning (utils.py / modules.py, the augmented
-Lagrangian loop from train_latency.py / train_single_service.py) to learn the
-weighted causal adjacency matrix `origin_A`, then ranks root causes with
-PageRank -- i.e. the actual CausalRCA method.
-
-Input variables are identical to the PC version: every column of
-`<fault_dir>/agent-network/metrics/instance.csv` (13 services x {cpu, memory,
-network} = 39 variables), so the two scripts differ ONLY in the causal-discovery
-step and are directly comparable.
-
-@author: adapted from ruyuexin's CausalRCA
-"""
+"""Faithful CausalRCA (DAG-GNN + PageRank) on the agent-service dataset."""
 
 import time
 from utils_microarcl import *

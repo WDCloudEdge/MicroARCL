@@ -1,18 +1,4 @@
-"""Baseline on RCAEval RE2: Birch detection + Personalized PageRank.
-
-RE2 port of run_all_abnormal_birch_ppr.py (method='ppr', detector='birch'). The
-Birch anomaly strength is the PPR personalization vector; a random walk with
-restart over the trace-derived call topology (call_chains.json) then ranks the
-services. Each RE2 case is materialized into the MicroARCL layout by re2_adapter
-(+ a graph.csv the PPR graph builder needs).
-
-PPR requires trace spans with parentSpanID for each case. Cases without trace
-data fail explicitly instead of silently creating a placeholder topology.
-
-Usage:
-    python run_all_abnormal_RE2_birch_ppr.py --root /path/to/RCAEval/data \
-        --suite re2ob [--window adaptive|label] [--align]
-"""
+"""Baseline on RCAEval RE2: Birch detection + Personalized PageRank."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

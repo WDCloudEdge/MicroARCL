@@ -1,23 +1,3 @@
-"""Shared core for the RCA comparison baselines (2x2 ablation).
-
-Anomaly detection is Birch (the original MicroARCL detector), NOT the severity
-detector used by the proposed method. Two axes:
-  * align   : whether QPS<->metric lag alignment (B.1) is applied before Birch
-              and before the adaptive window.
-  * localize: 'ppr' (Personalized PageRank over the call topology, Birch anomaly
-              strength as the personalization vector) or 'llm' (execution-graph
-              + log evidence fed to the LLM localizer, Module C).
-
-Baselines:
-  1 run_all_abnormal_birch_ppr.py    align=False localize=ppr
-  2 run_all_abnormal_aligned_ppr.py  align=True  localize=ppr
-  3 run_all_abnormal_birch_llm.py    align=False localize=llm
-  4 run_all_abnormal_aligned_llm.py  align=True  localize=llm
-
-Data source, labels, window and top-k metrics are identical to
-run_all_abnormal.py so the numbers are directly comparable to the proposed
-method (align + severity detection + localization).
-"""
 import os
 import re
 import sys

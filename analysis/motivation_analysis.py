@@ -1,12 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""RQ1 metric sparsity, variance, and inter-service heterogeneity on the
-NORMAL MDOC runs (1/3/5 users).
-
-Input : data/MDOC/normal/<run>/agent-network/metrics/*.csv (via common.DATASETS)
-Output: analysis/figures/{c2_sparsity_bars, c2b_service_heterogeneity}.{pdf,png}
-        analysis/tables/{sparsity, variance_cv, service_heterogeneity}.csv
-"""
+"""RQ1 metric sparsity, variance, and inter-service heterogeneity on the NORMAL MDOC runs (1/3/5 users)."""
 import os
 import numpy as np
 import pandas as pd

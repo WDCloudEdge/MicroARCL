@@ -1,18 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Run the CausalRCA (PC + PageRank) pipeline on the agent-service dataset.
-
-Mimics train_all_services_MicroARCL_sockshop.py, adapted for the
-`MicroARCL/data/thingo/abnormal/load-5` dataset, whose layout differs:
-
-  * label files use structured key/value blocks (service, root_cause,
-    window_range, ...), one block per fault case;
-  * every fault case stores its metrics in a single
-    `<fault_dir>/agent-network/metrics/instance.csv`.
-
-@author: adapted from ruyuexin's script
-"""
+"""Run the CausalRCA (PC + PageRank) pipeline on the agent-service dataset."""
 
 import time
 from utils_microarcl import *

@@ -1,19 +1,4 @@
-"""MicroARCL on the RCAEval RE2 datasets (metrics + traces).
-
-Same localizer configuration as run_all_abnormal_birch_align_MicroARCL.py --
-Birch detection on the lag-aligned window, reliability-weighted (wsum) fusion of
-the raw per-signal voters within the Birch top-15, then the chain-lag penalty
-(mu=1.0) -- but run over RE2 cases instead of the agent-network dataset. Each RE2
-case is materialized into the MicroARCL on-disk layout by re2_adapter so the
-detector, reliability fusion and chain-lag penalty run byte-for-byte unchanged;
-only the data/label reading is new.
-
-Usage:
-    python run_all_abnormal_RE2_birch_align_MicroARCL.py \
-        --root /path/to/RCAEval/data/re2ob [--limit N] [--suite re2ob]
-
---root defaults to $RE2_ROOT, then to the RCAEval checkout beside this repo.
-"""
+"""MicroARCL on the RCAEval RE2 datasets (metrics + traces)."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

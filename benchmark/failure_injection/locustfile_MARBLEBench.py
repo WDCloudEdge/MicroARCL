@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""MARBLEBench workload for the Thingo task-scheduling flow.
-
-The workload mirrors ``locustfile.py``: requests are sent to the central
-``FLOW_OPEN_TASK`` endpoint and are weighted toward the service currently
-receiving a fault.
-
-Unlike the earlier revision, prompts are phrased as **natural-language user
-intents**.  They no longer name the target MARBLE operation or spell out its
-parameter keys; instead they describe what the user wants and carry only the
-concrete facts a scheduler needs to build a valid request (URLs, coordinates,
-prices, roles, player names, ...).  Resolving the intent to the right agent
-group and operation is left to the platform scheduler, so this workload
-exercises the routing/parameter-construction path rather than bypassing it.
-
-Task coverage is grounded in each service's capability declaration
-(``config/group`` and ``config/agent`` JSON) and its ``agent.py`` handling
-logic, and is broadened to cover the full operation surface of every agent.
-"""
+"""MARBLEBench workload for the task-scheduling flow."""
 
 import os
 import random

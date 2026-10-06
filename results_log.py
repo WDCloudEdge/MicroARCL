@@ -1,23 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Shared result logging for every method x dataset, so all runs emit the SAME
-batch-log format into a uniform tree:
-
-    output/<dataset>/<method>/batch-<tag>_<ts>.log            (overall)
-    output/<dataset>/<method>/<level>/batch-<tag>_<ts>.log    (per sub-level)
-
-Datasets: MDOC, MAR, SS, OB, TT.  <level> is `single|multi` + `load` for the
-agent datasets and `<fault>` for the RE2 datasets (SS/OB/TT).
-
-Log layout (identical for all methods):
-  1. header lines + the per-sample blocks (printed live through a tee);
-  2. a SUMMARY block: the per-sample table, overall + per-level + per-category
-     ranking metrics (ACC@K / AVG@N / MRR);
-  3. the batch completion + mean per-stage timing + wall-clock.
-
-Each runner: open_batch(...) for the tee+header, sample_banner()/sample_eval()
-per sample, then summarize(...) / write_sublogs(...) at the end.
-"""
+"""Shared result logging for every method x dataset, so all runs emit the SAME batch-log format into a uniform tree:"""
 import os
 import sys
 import time

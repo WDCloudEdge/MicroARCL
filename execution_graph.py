@@ -1,15 +1,4 @@
-"""
-Module C (part 1): execution-graph parsing / indexing / slicing / aggregation.
-
-An execution graph is one agent-network trace: hierarchical vertexes
-(planning -> group -> agent) each carrying status/time/token/cost/messages/
-params/results/spans, plus global planning_result/summary/task/trace_id.
-
-This module turns the raw graph_json/<trace_id>.json files into failure
-evidence slices for the top-k coarse root-cause services, and detects the
-*cross-service shared error signature* that distinguishes a systemic root
-cause (e.g. LLM quota exhausted) from a single faulty service.
-"""
+"""execution-graph parsing / indexing / slicing / aggregation."""
 import os
 import re
 import glob

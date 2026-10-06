@@ -1,37 +1,5 @@
 #!/usr/bin/env python
-"""Run RCAEval's TORAI method on the MicroARCL agent-network dataset.
-
-TORAI (RCAEval/e2e/torai.py) is a multi-source RCA method: per-modality anomaly
-scoring (metrics + logs + traces), Gaussian-Mixture clustering of the per-service
-modality-score matrix, then RCD-based within-cluster refinement.
-
-The MicroARCL agent data is not in RCAEval's torai-* layout, so this adapter
-builds TORAI's three modality inputs from the raw per-case files:
-
-  metric : agent-network/metrics/svc_metric.csv  ("<service>&<metric>" columns,
-           5 s cadence, own `timestamp` column). Renamed to "<service>_<metric>"
-           and up-sampled to a 1 s grid so TORAI's internal ``::15`` sub-sample
-           lands on a true 15 s cadence, exactly as on the published 1 s data.
-  logts  : agent-network/log/*_<service>.log line counts bucketed at 15 s.
-  trace  : derived from the *execution graphs* (agent-network/graph/graph_json)
-           via execution_graph.py. These carry no per-trace wall-clock timestamp,
-           so instead of a time-windowed series we inject a per-service
-           failed-vs-success contrast straight into TORAI's GMM feature matrix
-           through the ``trace_scores=`` hook added to torai():
-             err = number of traces that traverse the service and fail
-                   (task_status 3/8, or a vertex error signature)
-             lat = max(0, mean vertex execution time on failed traces
-                          - mean vertex execution time on successful traces)
-
-inject_time is each case's ``fault_start`` (from the per-service *_label.txt).
-
-Usage:
-    python run_torai_agent.py [LOAD_DIR]
-Default LOAD_DIR is data/MDOC/abnormal/load-5.
-
-Must run under RCAEval's .venv-torai (py3.8 + patched causal-learn), because the
-within-cluster refinement uses RCD's localized PC algorithm.
-"""
+"""Run RCAEval's TORAI method on the MicroARCL agent-network dataset."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

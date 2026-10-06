@@ -1,22 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""RQ5 -- MicroARCL component ablation on the agent datasets (MDOC / MAR).
-
-Holds the candidate budget k fixed at the dataset's final value (MAR k=5,
-MDOC k=15), mu=1, and removes one module at a time:
-
-  full          agent-aware Birch + reliability wsum fusion - mu*chain_lag
-  MicroARCL-A   remove agent-aware detection  (detector=birch, alignment off)
-  MicroARCL-W   remove reliability fusion      (fuse=gate: gate score only)
-  MicroARCL-L   remove request-level lag        (mu=0)
-
-Each variant reuses experiments/_agent_runner.py so the method path is identical
-to run_microarcl.py; only the ablated knob changes.
-
-Usage:
-  python experiments/run_ablation.py --dataset all
-  python experiments/run_ablation.py --dataset MDOC --limit 3   # smoke test
-"""
+"""RQ5 -- MicroARCL component ablation on the agent datasets (MDOC / MAR)."""
 import os
 import sys
 import subprocess

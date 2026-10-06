@@ -1,25 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""RQ3/RQ4/RQ6 -- run MicroARCL (the final method) on all five datasets.
-
-MicroARCL = agent-aware Birch candidate gate + reliability-weighted wsum fusion
-of the metric voters - mu*chain_lag (no GNN). Final config (paper S7.1.2):
-mu = 1.0 everywhere; candidate budget k = 5 for MAR, k = 15 for the other four.
-
-Two data-loading paths, one method:
-  * MDOC / MAR  -> baseline_common pipeline via experiments/_agent_runner.py
-  * SS / OB / TT -> RCAEval RE2 (re2ss/re2ob/re2tt) via re2_adapter +
-    run_all_abnormal_RE2_abirch_labelwin_MicroARCL.py
-
-Each run prints per-dataset localization metrics (ACC@k, MRR -> RQ3), per-sample
-timing (-> RQ4), and the per-group / per-load / per-fault-category breakdowns
-(-> RQ6). Logs land under each dataset's own results tree.
-
-Usage:
-  python experiments/run_microarcl.py --dataset all
-  python experiments/run_microarcl.py --dataset MDOC
-  python experiments/run_microarcl.py --dataset SS --limit 3     # smoke test
-"""
+"""RQ3/RQ4/RQ6 -- run MicroARCL (the final method) on all five datasets."""
 import os
 import sys
 import subprocess

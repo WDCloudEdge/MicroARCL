@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Internal: run one localization method (baseline_common.main) on ONE agent
-dataset (MDOC or MARBLEBench) with an explicit config. Kept as a separate entry
-so AGENT_DATASET is fixed BEFORE baseline_common is imported (it resolves the
-abnormal-sample root at import time). The experiments/ drivers invoke this as a
-subprocess, one per dataset, so each run gets a clean dataset root.
-
-Handles both MicroARCL (`--method relrrf`) and the comparison baselines
-(`--method ppr|direct|llm`); method-specific opts (k/mu/fuse) are ignored by the
-baselines. Not meant to be called directly -- use the experiments/ drivers.
-"""
+"""Internal: run one localization method (baseline_common.main) on ONE agent dataset (MDOC or MARBLEBench) with an explicit config."""
 import os
 import sys
 import argparse

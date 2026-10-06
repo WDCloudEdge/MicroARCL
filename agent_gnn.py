@@ -1,15 +1,4 @@
-"""
-GNN coarse ranker for the single-namespace agent-network dataset.
-
-Reuses the original MicroARCL machinery (graph.py heterogeneous topology
-stack + model.py unsupervised GNN + bp objective) but builds the topology
-stack OFFLINE from graph.csv (no Prometheus / Kubernetes client), so it can
-run directly on a collected sample directory.
-
-Exposes gnn_rank(config, base_dir, start_ts, end_ts) -> {node_name: score},
-the GNN node-level root-cause ranking, to be compared side-by-side with the
-severity-based coarse ranking in run_agent_rca.py.
-"""
+"""GNN coarse ranker for the single-namespace agent-network dataset."""
 import os
 import json
 from typing import Dict, List, Set, Tuple, Optional

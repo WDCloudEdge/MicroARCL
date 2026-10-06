@@ -1,13 +1,4 @@
-"""RQ2 common-mode diffusion diagnostic (paper S5.2.1) over the MicroASBench
-failure runs: per-sample first-PC variance ratio eta and mean pairwise
-correlation rho_bar of the per-service CPU-usage deviation sequences (PCA on
-the correlation matrix, so an equal-variance independent reference gives
-eta = 1/N).
-
-Input : data/<dataset>/abnormal/<group>/<load>/<sample>, enumerated via
-        baseline_common._discover (--dataset MDOC|MARBLEBench, --align optional)
-Output: console summary + data/<dataset>/diag_common_mode_{raw,aligned}.csv
-"""
+"""Measure common-mode CPU anomaly patterns across services."""
 import os
 import sys
 import argparse

@@ -1,38 +1,4 @@
-"""RE2 (RCAEval) dataset adapter for the MicroARCL localizer.
-
-The RCAEval RE2 suites ship each failure case as a self-contained directory
-
-    <case>/metrics.json        # wide time series: a `time` column (unix seconds)
-                               # + one `{service}_{metric}` column per series
-    <case>/traces.csv          # one row per span: traceID, spanID, serviceName,
-                               # parentSpanID, startTime (us), duration (us),
-                               # statusCode, ...
-    <case>/logs.csv            # (unused here)
-    <case>/inject_time.txt     # a single unix-second fault-injection timestamp
-
-(Parquet copies -- metrics.parquet / traces.parquet -- are read transparently.
-Some suites, including the available RE2 Sock Shop cases, have no traces.)
-The root-cause service and fault type are encoded in the directory name,
-`{suite}_{service}_{fault}_{instance}` (e.g. `re2ob_adservice_cpu_1`).
-
-MicroARCL (run_all_abnormal_birch_align_MicroARCL.py)
-on-disk layout instead: per-service metric CSVs under `<sample>/<ns>/metrics/`
-plus a service-level `<sample>/<ns>/graph/call_chains.json`. Rather than rewrite
-the whole disk-coupled pipeline, this module *materializes* each RE2 case into
-that layout so the existing detector + reliability fusion + chain-lag penalty run
-unchanged:
-
-    success_rate.csv   {timestamp} + one col per service   (built from traces)
-    svc_qps.csv        {timestamp} + one col per service   (trace request rate)
-    latency.csv        {timestamp} + {svc}&p50/p90/p99      (from metric latency)
-    svc_metric.csv     {timestamp} + {svc}&cpu_usage/&mem_usage/&net_*
-    call.csv           {timestamp} + {caller}_{callee}&p50/p90/p99 (trace edges)
-    instance.csv       {timestamp} + {svc}_0                (per-service cpu proxy)
-    graph/call_chains.json  [{trace_id, path:[svc, ...]}]   (trace call paths)
-
-Timestamps are emitted as UTC `%Y-%m-%d %H:%M:%S` strings so they round-trip
-through util.utils.time_string_2_timestamp, exactly like the native dataset.
-"""
+"""RE2 (RCAEval) dataset adapter for the MicroARCL localizer."""
 import os
 import re
 import json

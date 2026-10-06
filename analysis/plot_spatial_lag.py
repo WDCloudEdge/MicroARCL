@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""RQ2 S5.2.2 aggregation: read prepare_spatial_lag.py tables and report the
-adjacent/nonadjacent predictability lift and the cumulative-time-by-depth
-curve per dataset (paper numbers), plus a supplementary two-panel figure.
-
-Input : analysis/tables/{dataset}_{spatial,timing,audit}.csv
-Output: analysis/tables/spatial_lag_summary.txt
-        analysis/figures/{dataset}_spatial_lag.{pdf,png}
-"""
+"""Summarize spatial lag tables and plot their key comparisons."""
 from pathlib import Path
 
 import matplotlib

@@ -1,19 +1,4 @@
-"""Normal-state topology residual localizers + severity top-k rerank.
-
-Enhances the severity ranking with a residual measuring how much a service
-deviates in the abnormal window BEYOND what its neighbors explain (self-fault =
-root cause), learned on the pre-window NORMAL segment. Residual kinds:
-  - fix : fixed neighbor-mean prediction (no training)
-  - gnnA: tiny GNN learns adaptive neighbor strengths alpha (W=identity)
-  - gnnW: GNN learns alpha + a cross-component relation W
-The residual reranks services WITHIN the severity top-k (candidate set is
-unchanged, so ACC@>=k cannot drop; only intra-top-k order / ACC@1 changes).
-
-Only cpu/mem are used: latency.csv typically starts at the anomaly-window onset
-and has no pre-window normal segment, so it cannot form a normal-state baseline
-(its info is already in severity's latency_spike term). Offline validation:
-tmp/verify_normal_residual.py (fix) and tmp/verify_gnn_residual.py (gnn).
-"""
+"""Normal-state topology residual localizers + severity top-k rerank."""
 import os
 import numpy as np
 import pandas as pd

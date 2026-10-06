@@ -1,30 +1,4 @@
-"""Weight-free, scale-free severity via TEMPORAL OVERLAP of metric-type anomaly
-windows (scheme A: sum of pairwise Jaccard).
-
-Motivation: the hand-weighted severity (fail + 0.1*latency + 0.5*res + 0.1*qps)
-mixes incommensurable magnitudes and needs w_res/w_qps. Instead we exploit that
-the metric TYPES play different causal roles and only compare each service to
-ITSELF over time:
-
-  S = success_rate sustained failures  -- did user requests actually fail (base)
-  K = qps/latency sustained anomalies  -- leading symptoms (workload drop /
-                                          latency rise often PRECEDE the failure)
-  R = cpu/mem/net sustained spikes on LAG-ALIGNED resource series -- the resource
-                                          cause (resources respond with a lag, so
-                                          they are aligned back before peak test)
-
-Each is a set of anomalous TIME BINS for that service. Severity is the temporal
-agreement among the three types:
-
-    severity(s) = J(S,K) + J(S,R) + J(K,R),   J(X,Y) = |X n Y| / |X u Y|
-
-No magnitude enters the score -> no w_res/w_qps. Because it is a ratio of
-time-bin sets, it is scale-free and directly comparable across heterogeneous
-services (a busy service and a tiny one are judged only by self-relative timing).
-A root cause shows resource AND symptom anomalies in the same aligned window
-(high overlap); a downstream victim shows symptoms without a resource cause
-(J(.,R)=0, lower). Reuses run_agent_rca's baseline/sustained-spike detectors.
-"""
+"""Weight-free, scale-free severity via TEMPORAL OVERLAP of metric-type anomaly windows (scheme A: sum of pairwise Jaccard)."""
 import os
 import math
 from itertools import combinations

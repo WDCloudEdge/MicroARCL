@@ -1,30 +1,5 @@
 #!/usr/bin/env python3
-"""MARBLEBench workload driven by the *original* MultiAgentBench tasks.
-
-Unlike ``locustfile_MARBLEBench.py`` — which uses hand-written natural-language
-intents — this workload sends the **verbatim task prompts** shipped with the
-upstream benchmark (``MARBLE/multiagentbench/<scenario>/<scenario>_main.jsonl``).
-Each JSONL record carries the real task text under ``task.content``; we load it
-directly so the traffic hitting the platform scheduler matches what the original
-benchmark actually asks the agents to do.
-
-Scenario -> service mapping (the five scenarios that exist in the upstream
-benchmark):
-
-    research    -> agent-network-marble-research
-    coding      -> agent-network-marble-coding
-    database    -> agent-network-marble-database
-    bargaining  -> agent-network-marble-world
-    minecraft   -> agent-network-marble-minecraft
-
-The benchmark directory is resolved from ``MARBLE_BENCH_DIR`` (env), falling
-back to the sibling checkout at ``../../../MARBLE/multiagentbench`` relative to
-this file.  If the JSONL files cannot be found, a small set of format-faithful
-fallback tasks is used so the workload still runs standalone.
-
-As in the sibling workload, requests go to the central ``FLOW_OPEN_TASK``
-endpoint and are weighted toward the service currently receiving a fault.
-"""
+"""MARBLEBench workload driven by the *original* MultiAgentBench tasks."""
 
 import json
 import os

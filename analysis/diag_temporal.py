@@ -1,14 +1,4 @@
-"""RQ2 flattened-temporal-ordering diagnostic (paper S5.2.2) over the
-MicroASBench failure runs: anomaly onset-order partition (root-first /
-near-sync / victim-first), median root onset lead, and the fraction of zero
-QPS->resource lags. Onsets come from run_onset_propagation (Birch, alignment
-off => raw observed order); lags from lag_align.compute_service_lags.
-
-Input : data/<dataset>/abnormal/<group>/<load>/<sample>, enumerated via
-        baseline_common._discover (--dataset MDOC|MARBLEBench,
-        --loads <load>..., --from window|load|fault)
-Output: console summary
-"""
+"""Measure anomaly onset order and QPS-to-resource lag."""
 import os
 import sys
 import argparse

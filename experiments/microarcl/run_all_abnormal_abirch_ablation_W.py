@@ -1,9 +1,4 @@
-"""ABLATION MicroARCL-W: remove the RELIABILITY-WEIGHTED metric-voter fusion.
-Main line = abirch gate + reliability-weighted wsum of telemetry voters
-- mu*chain_lag (k=15, mu=1, no GNN). This variant sets fuse='gate': no voter
-fusion at all -- metric evidence = the candidate gate's own score, so weak or
-diffuse metric evidence is no longer down-weighted. Everything else identical.
-"""
+"""ABLATION MicroARCL-W: remove the RELIABILITY-WEIGHTED metric-voter fusion."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

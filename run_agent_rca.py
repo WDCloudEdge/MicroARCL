@@ -1,21 +1,4 @@
-"""
-Initial end-to-end driver for agent-service root cause localization.
-
-Pipeline (v1, single `agent-network` namespace, label-free):
-  1. Load service KPIs (success_rate / latency / qps) for one sample.
-  2. Module B.0: label-free adaptive anomaly window from success rate plus
-     lag-aligned latency and resource signals.
-  3. Coarse ranking: rank anomalous services by failure severity within the
-     window (placeholder for the GNN ranker; interface-compatible).
-  4. Module C: pull execution-graph slices for the top-k services, aggregate
-     the cross-service shared error signature, and run LLM fine-grained
-     localization (OpenAI-compatible; mockable).
-
-Expected result on the provided MDOC sample: root cause = LLM quota
-exhausted (systemic), not a single service.
-
-Run:  .venv/bin/python run_agent_rca.py
-"""
+"""Initial end-to-end driver for agent-service root cause localization."""
 import os
 import re
 import numpy as np

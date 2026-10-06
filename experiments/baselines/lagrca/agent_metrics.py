@@ -1,14 +1,4 @@
-"""Ranking metrics aligned with MicroARCL baseline_common.py.
-
-Prints ACC@K and AVG@N for K,N in TOP_K_CUTOFFS (1..10), MRR and n, using the
-exact same definitions as run_all_abnormal._topk_metrics / _service_rank:
-
-  rank(gt)  : instances mapped to service (node-X kept as-is, pod -> service),
-              deduplicated preserving order; 1-based position of gt, 0 = miss.
-  ACC@k     : fraction with 0 < rank <= k
-  AVG@n     : mean of ACC@1..ACC@n
-  MRR       : mean(1/rank), miss -> 0
-"""
+"""Ranking metrics aligned with MicroARCL baseline_common.py."""
 import os
 import re
 import sys

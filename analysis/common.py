@@ -1,12 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Shared config & helpers for the motivation analysis scripts.
-
-Importing this module configures matplotlib for the paper: Times New Roman
-font and vector-PDF output (fonts embedded as Type42). All figure text is in
-English. Use ``save_fig(fig, name)`` to emit both a vector PDF (for the paper)
-and a PNG (for markdown preview).
-"""
+"""Shared config & helpers for the motivation analysis scripts."""
 import os
 import glob
 import json

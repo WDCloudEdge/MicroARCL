@@ -1,20 +1,4 @@
-"""
-Module C (part 2): execution-graph driven fine-grained localization.
-
-Takes the aggregated top-k evidence (from execution_graph.aggregate_topk_slices)
-and asks an LLM (OpenAI-compatible Chat Completions API) to localize the
-fine-grained root cause and failure stage, returning structured JSON.
-
-Design goals:
-- OpenAI-compatible: the user only needs to supply `sk` + `base_url`.
-- Staged and auditable: GNN-anchored screening -> multi-evidence verification
-  -> final decision, with an explicit guard for overriding GNN top-1.
-- Dependency-light: uses the `openai` SDK if installed, else falls back to a
-  plain urllib HTTP POST, so no hard dependency is required.
-- Mockable/offline: `cfg.llm_mock=True` (or missing key) -> deterministic
-  rule-based localization derived from the shared error signature, so the
-  whole pipeline runs end-to-end without network access.
-"""
+"""execution-graph driven fine-grained localization."""
 import os
 import json
 import urllib.request

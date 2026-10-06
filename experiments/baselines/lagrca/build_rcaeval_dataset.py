@@ -1,23 +1,4 @@
-"""
-Convert an RCAEval system-version (e.g. re2ob / re2ss / re2tt) into LagRCA's
-preprocessed format.
-
-RCAEval layout: data/<sys>_<service>_<fault>_<idx>/metrics.json + inject_time.txt
-  metrics.json : {"<service>_<metric>": [[ts, value], ...]}
-  inject_time  : unix ts splitting normal (before) / abnormal (after)
-
-Mapping to LagRCA (service-level; no pod/node tier):
-  instances  = union of services across the system's samples
-  features   = <metric>&<service> for every (service, metric-type), missing -> 0
-  normal_data= pre-injection rows pooled across samples (capped & subsampled)
-  case_data  = each sample's post-injection rows; label = faulted service;
-               case_id = "<sys>/<fault>/<name>"  (enables per-fault breakdown)
-  adj        = fully connected by default; --trace-adj for re2ob uses direct
-               calls recovered from pre-injection traces.csv
-
-Usage:  python build_rcaeval_dataset.py re2ob
-Writes: data/<sys>/{normal_data.pkl, adj.pkl, case_data.pkl, all_enum.json}
-"""
+"""Convert an RCAEval system-version (e.g."""
 import os
 import re
 import sys

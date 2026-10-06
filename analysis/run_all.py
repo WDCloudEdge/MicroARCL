@@ -1,15 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Reproduce every RQ1 and RQ2 result and figure of the paper.
-
-    .venv/bin/python analysis/run_all.py
-
-RQ1 (empirical study, paper Fig. 2 / Fig. 3) is produced in-process from the
-NORMAL executions; figures land in analysis/figures/ and tables in
-analysis/tables/. RQ2 (common-mode diffusion and flattened temporal ordering)
-is produced by the two diagnostics over the FAILURE executions, each run as a
-subprocess per dataset so the AGENT_DATASET root is fixed cleanly at import.
-"""
+"""Reproduce every RQ1 and RQ2 result and figure of the paper."""
 import os
 import sys
 import subprocess

@@ -1,9 +1,4 @@
-"""Batch-validate the agent RCA pipeline over all abnormal samples.
-
-Ground truth is parsed from the label file(s) (data/MDOC/abnormal/*_label.txt);
-each sample is run label-free, then we judge whether the localization hit the
-ground-truth root-cause service.
-"""
+"""Batch-validate the agent RCA pipeline over all abnormal samples."""
 import os
 import re
 import glob

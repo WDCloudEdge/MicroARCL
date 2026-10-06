@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""Count observable records in a local MARBLEBench export.
-
-Usage: python analysis/marblebench_stats.py [DATASET_DIR] [--output JSON_FILE]
-
-The six record categories use these concrete files:
-  request_execution_graphs: graph/graph_json/*.json
-  service_executions: entries in each JSON's level_details[].level_spans
-  llm_messages: messages in those spans
-  llm_tokens: each graph JSON's top-level token (aggregate, not span sum)
-  metric_records: data rows in numeric agent-network/metrics/*.csv and node/*.csv
-  log_records: lines in agent-network/log/*.log
-
-Execution spans include both agent and group nodes; span_types reports the split.
-Topology graph.csv, historical metrics.pre_recollect files, and task.log
-orchestration output are excluded.
-"""
+"""Count observable records in a local MARBLEBench export."""
 
 import argparse
 import csv

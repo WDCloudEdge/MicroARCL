@@ -1,16 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-CausalRCA (PC + PageRank) on the RCAEval RE2 datasets (re2ob / re2ss / re2tt).
-
-Causal discovery: constraint-based PC with the Fisher-Z test (the correct and
-tractable choice for continuous metrics, as in RCAEval's own pc_default), then
-PageRank on |adj.T| to rank root-cause metrics. A case counts as a hit when the
-ground-truth service (from the folder name) owns the first matching column.
-
-Data loading / windowing / variable selection live in rcaeval_common.py.
-Results are written per case and summarised for TOTAL / per system / per fault.
-"""
+"""CausalRCA (PC + PageRank) on the RCAEval RE2 datasets (re2ob / re2ss / re2tt)."""
 
 import os
 import time

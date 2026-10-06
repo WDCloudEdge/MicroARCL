@@ -1,14 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""RQ1 call-chain analysis on the REAL chains collected by GraphCollector
-(data/MDOC/normal/<run>/agent-network/graph/graph_json/*.json): cumulative
-completion time by chain depth, chain dynamism, and per-vertex invocation
-sparsity plus execution-time variance.
-
-Input : data/MDOC/normal/<run>/agent-network/graph (via common.DATASETS / C1_MULTI)
-Output: analysis/figures/{c1r_completion_by_depth, c2r_vertex_sparsity_variance}.{pdf,png}
-        analysis/tables/{chain_completion_by_depth, chain_dynamism, chain_vertex_stats}.csv
-"""
+"""Analyze call-chain completion time, depth, and invocation sparsity."""
 import os
 import collections
 import numpy as np

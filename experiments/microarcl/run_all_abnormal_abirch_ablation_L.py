@@ -1,8 +1,4 @@
-"""ABLATION MicroARCL-L: remove the request-level invocation-chain LAG correction.
-Main line = abirch gate + reliability-weighted wsum of telemetry voters
-- mu*chain_lag (k=15, mu=1, no GNN). This variant sets mu=0.0: no chain-lag
-temporal-accumulation penalty. Everything else identical.
-"""
+"""ABLATION MicroARCL-L: remove the request-level invocation-chain LAG correction."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

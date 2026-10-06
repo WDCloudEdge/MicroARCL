@@ -1,22 +1,4 @@
-"""MicroARCL on RCAEval RE2 using the LABEL time window for Birch.
-
-Same localizer as run_all_abnormal_RE2_birch_align_MicroARCL.py (Birch gate +
-reliability wsum fusion within top-15 + chain-lag penalty), but the detection /
-scoring window is NOT the data-driven adaptive window. Instead it is defined
-directly from the ground-truth fault-injection timestamp (inject_time.txt):
-
-    window = [inject_time - pre, inject_time + post]   (clipped to the data span)
-
-This deliberately brackets a NORMAL pre-injection segment together with the
-abnormal segment, giving Birch the normal/abnormal contrast its L2-normalized
-clustering needs. On RE2 the adaptive window is often *mostly faulty* (the fault
-persists to the end of collection), which compresses Birch's signal under its
-threshold and empties the candidate set; the label window avoids that.
-
-Usage:
-    python run_all_abnormal_RE2_birch_labelwin_MicroARCL.py \
-        --root /path/to/RCAEval/data --suite re2ob [--pre 180 --post 180]
-"""
+"""MicroARCL on RCAEval RE2 using the LABEL time window for Birch."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

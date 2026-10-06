@@ -1,20 +1,4 @@
-"""
-Module B.1: metric lag alignment (QPS-driven).
-
-In agent services, QPS (workload) leads while CPU/memory/latency respond with a
-lag that varies by service / load / deployment (motivation Fig. m2.1: CPU lag
-~30/10s, memory ~35/60s). Comparing or clustering raw (unaligned) metrics mixes
-a failure's manifestations across different timestamps. We therefore estimate a
-per-(service, kind) lag by cross-correlating QPS against each resource metric,
-then shift the lagged metrics back onto the QPS/causal timeline. The aligned
-matrix feeds adaptive-window detection, severity ranking, Birch (B.2), and the
-GNN feature construction.
-
-success_rate is NOT aligned here; it remains a downstream signal contributing
-to the adaptive window alongside aligned latency and resource metrics.
-Physical-node metrics (node.csv) are left unaligned in v1 (node aggregates many
-services, so a single QPS reference is ill-defined).
-"""
+"""metric lag alignment (QPS-driven)."""
 import os
 import re
 import numpy as np

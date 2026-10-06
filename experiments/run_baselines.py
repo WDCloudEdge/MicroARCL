@@ -1,28 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""RQ3/RQ4/RQ6 (comparison methods) -- run the baseline RCL approaches on the
-five datasets, alongside MicroARCL (experiments/run_microarcl.py).
-
-Wired baselines (all run under the single merged .venv):
-  * MicroRCA    -- Birch + Personalized PageRank over the trace-derived call
-    topology. NOT run on SockShop (SS): RE2 SockShop has no traces -> no graph.
-  * TORAI       -- multi-source scoring + GMM + RCD (RCAEval). All 5 datasets.
-  * CausalRCA   -- DAG-GNN structure learning + PageRank. All 5 datasets.
-  * CloudRanger -- PC (Fisher-Z) causal discovery + PageRank. All 5 datasets.
-
-Runner scripts live under experiments/: baselines/{torai,microrca,causalrca}/.
-CausalRCA/CloudRanger (vendored under experiments/baselines/causalrca/) are run
-as `python experiments/baselines/causalrca/<script>` so that dir is sys.path[0]
-and its config.py/graph.py shadow the root ones; RCAEVAL_DATA points at the
-in-repo data/RCAEval; the agent/marble runners take a cap via $CAUSALRCA_LIMIT,
-the RE2 runner via --limit.
-
-All results land in output/<dataset>/<method>/ in the uniform log format.
-
-Usage:
-  python experiments/run_baselines.py --baseline CausalRCA --dataset all
-  python experiments/run_baselines.py --baseline CloudRanger --dataset SS --limit 3
-"""
+"""RQ3/RQ4/RQ6 (comparison methods) -- run the baseline RCL approaches on the five datasets, alongside MicroARCL (experiments/run_microarcl.py)."""
 import os
 import sys
 import subprocess

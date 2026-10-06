@@ -1,26 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Shared helpers for running CausalRCA (PC / DAG-GNN + PageRank) on the RCAEval
-RE2 datasets (re2ob / re2ss / re2tt).
-
-Data layout (one directory per fault case):
-    <DATA>/re2<sys>_<service>_<fault>_<run>/
-        metrics.json     {metric_name: [[ts, value], ...]}  (metric = <service>_<type>)
-        inject_time.txt   unix timestamp of fault injection
-        logs.csv, traces.csv (unused here)
-
-To keep the problem tractable and the two methods comparable we follow the
-decisions made with the user:
-  * keep only latency-90 + cpu + mem metrics (drop socket/diskio/workload/error
-    and latency-50);
-  * use a LENGTH-minute window centred on inject_time (half before, half after),
-    mirroring RCAEval's main.py slicing;
-  * drop constant columns, then L2-normalise each column (as in utils_microarcl).
-
-Ranking/metrics are reported for TOTAL, per system (ob/ss/tt) and per fault type,
-matching the MicroARCL summaries.
-"""
+"""Shared helpers for running CausalRCA (PC / DAG-GNN + PageRank) on the RCAEval RE2 datasets (re2ob / re2ss / re2tt)."""
 
 import os
 import json

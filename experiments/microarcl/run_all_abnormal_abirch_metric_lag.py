@@ -1,10 +1,4 @@
-"""MAIN LINE (no GNN): agent-aware Birch candidate gate + reliability-weighted
-SUM (wsum) of the TELEMETRY metric anomaly voters (failure/latency/cpu/mem/net/
-qps) − mu*chain_lag. GNN residual DROPPED (pure metric aggregation, no GNN
-training). k=5 primary, mu=1. (Ablation: fusion form wsum≈max≈mean; wsum kept.)
-
-90-sample: k=5 -> 0.456 / single 0.417 / multi 0.533 / MRR 0.592.
-"""
+"""agent-aware Birch candidate gate + reliability-weighted SUM (wsum) of the TELEMETRY metric anomaly voters (failure/latency/cpu/mem/net/ qps) − mu*chain_lag."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

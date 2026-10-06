@@ -1,9 +1,4 @@
-"""ABLATION MicroARCL-A: remove the AGENT-AWARE anomaly detection module.
-Main line = abirch gate + reliability-weighted wsum of telemetry voters
-- mu*chain_lag (k=15, mu=1, no GNN). This variant swaps the agent-aware
-detector back to plain Birch (detector='birch'): no request-gating, no
-sparsity-evidence confidence, no metric alignment. Everything else identical.
-"""
+"""ABLATION MicroARCL-A: remove the AGENT-AWARE anomaly detection module."""
 # --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
 import os as _os, sys as _sys
 _r = _os.path.dirname(_os.path.abspath(__file__))

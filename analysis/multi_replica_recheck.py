@@ -1,14 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""RQ1 QPS->resource metric-lag re-check on the NORMAL MDOC runs: single vs
-multi-replica for 1/3/5 users (Fig. 3a), plus sparsity/variance/chain tables
-confirming the conclusions hold across replica settings.
-
-Input : data/MDOC/normal/<run>/agent-network/metrics (via PAIRS / FIG_MULTI)
-Output: analysis/figures/recheck_lag_ccf.{pdf,png}
-        analysis/tables/{recheck_compare, recheck_replica_effect,
-        recheck_cluster_resource}.csv
-"""
+"""RQ1 QPS->resource metric-lag re-check on the NORMAL MDOC runs: single vs multi-replica for 1/3/5 users (Fig."""
 import os
 import numpy as np
 import pandas as pd

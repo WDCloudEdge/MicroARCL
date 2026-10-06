@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""RQ2 spatial + execution-lag evidence (paper S5.2.2) over the MicroASBench
-failure runs. Panel (a): adjacent vs nonadjacent one-step ridge predictability
-lift (added test R^2). Panel (b): cumulative request execution time by call
-depth. Service adjacency comes from graph/call_chains.json (validated against
-graph.csv); timing from graph/graph_json/*.json spans.
-
-Input : data/<dataset>/abnormal/<group>/<load>/<sample> (--dataset MDOC|MARBLEBench)
-Output: analysis/tables/{dataset}_{spatial,timing,audit}.csv
-"""
+"""RQ2 spatial + execution-lag evidence (paper S5.2.2) over the MicroASBench failure runs."""
 from __future__ import annotations
 
 import argparse
