@@ -13,9 +13,8 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-# Resolve --dataset BEFORE importing the project modules: run_all_abnormal,
-# baseline_common and run_onset_propagation fix the abnormal-sample root from
-# AGENT_DATASET at import time.
+# Resolve --dataset BEFORE importing the project modules: baseline_common
+# selects the abnormal-sample root from AGENT_DATASET at import time.
 _pre = argparse.ArgumentParser(add_help=False)
 _pre.add_argument('--dataset', choices=('MDOC', 'MARBLEBench'), default='MDOC')
 _DATASET = _pre.parse_known_args()[0].dataset

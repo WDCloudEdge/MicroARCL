@@ -10,7 +10,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
 
 import run_agent_rca as R
-from run_all_abnormal import ABN, TOP_K_CUTOFFS, parse_labels, _Tee, _topk_metrics
+from run_all_abnormal import TOP_K_CUTOFFS, parse_labels, _Tee, _topk_metrics
 from Config import Config
 from anomaly_detection import get_anomaly_by_df
 from lag_align import (align_metrics_df, compute_service_lags,
@@ -54,7 +54,7 @@ CATEGORY = CATEGORY_BY_DATASET.get(AGENT_DATASET, CATEGORY_MDOC)
 # Dataset layout: abnormal/<group>/<load>/<sample>, group in {single, multi},
 # load e.g. load-3 / load-5 / load-3-multi. Results report a 4-level hierarchy:
 # overall (abnormal) + per-group (single/multi) + per-load + per-category.
-ABN_BASE = os.path.dirname(ABN)
+ABN_BASE = os.path.join('data', AGENT_DATASET, 'abnormal')
 
 
 def _discover(groups=None):
