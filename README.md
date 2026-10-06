@@ -59,6 +59,7 @@ Optional:
 
 MDOC and MAR download: https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL
 SS, TT, and OB download: https://github.com/phamquiluan/RCAEval
+To facilitate reproduction, the SS, TT, and OB datasets have been included in https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL. Please refer to the source link for dataset details.
 
 ## MicroARCL framework
 

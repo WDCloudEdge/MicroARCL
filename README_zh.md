@@ -62,7 +62,8 @@ MAR:
 ### 数据集
 
 MDOC 和 MAR 下载地址: https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL
-SS TT OB下载地址: https://github.com/phamquiluan/RCAEval
+SS TT OB下载源地址: https://github.com/phamquiluan/RCAEval
+为了方便复现，https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL中已包含了SS TT OB数据集，数据集详情可参考源链接
 
 
 ## MicroARCL 框架
