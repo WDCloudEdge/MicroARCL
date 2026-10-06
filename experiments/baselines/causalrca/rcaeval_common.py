@@ -30,9 +30,8 @@ import pandas as pd
 from datetime import datetime
 from sklearn import preprocessing
 
-DATA_DIR = os.environ.get(
-    'RCAEVAL_DATA',
-    '/Volumes/macbookproTi600/zhuyuhan/078-WHU/researchProject/RCAEval/data')
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+DATA_DIR = os.environ.get('RCAEVAL_DATA', os.path.join(REPO_ROOT, 'data', 'RCAEval'))
 KEEP_SUFFIXES = ('_cpu', '_mem', '_latency-90')
 LENGTH = 10   # minutes (half before / half after inject_time)
 TDELTA = 0

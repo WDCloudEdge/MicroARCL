@@ -1,5 +1,5 @@
 {
-  "dataset": "/Volumes/macbookproTi600/zhuyuhan/078-WHU/researchProject/data-collector/data/MARBLEBench",
+  "dataset": "data/MARBLEBench",
   "samples": {
     "normal": 4,
     "abnormal": 120
