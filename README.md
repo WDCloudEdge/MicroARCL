@@ -57,9 +57,9 @@ Optional:
 
 ### Dataset
 
-MDOC and MAR download: https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL
+MDOC and MAR download: https://huggingface.co/datasets/XXXX/MicroARCL
 SS, TT, and OB download: https://github.com/phamquiluan/RCAEval
-To facilitate reproduction, the SS, TT, and OB datasets have been included in https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL. Please refer to the source link for dataset details.
+To facilitate reproduction, the SS, TT, and OB datasets have been included in https://huggingface.co/datasets/XXXX/MicroARCL. Please refer to the source link for dataset details.
 
 ## MicroARCL framework
 
@@ -174,6 +174,12 @@ experiments/run_sensitivity.py
 
 Future work will extend MicroASBench with more agent applications and agent-specific failure types, and further evaluate root cause localization performance.
 
-## License
+## Licensing and third-party attribution
 
-This repository is licensed under the [Apache License 2.0](LICENSE).
+MicroARCL's original code, reproduction scripts, MDOC/MAR data, and original data processing use the [MIT License](LICENSE).
+
+- **RCAEval:** SS, TT, and OB data and vendored RCAEval code come from [RCAEval](https://github.com/phamquiluan/RCAEval). Its own code and data use [MIT](third_party/RCAEval/LICENSE) (copyright © 2024 Luan Pham).
+- **LagRCA:** Baseline adapted from [LagRCA](https://github.com/kjhjk566/LagRCA); no upstream license stated.
+- **CausalRCA:** Baseline based on [CausalRCA](https://github.com/AXinx/CausalRCA_code); no upstream license stated.
+
+The `benchmark/` subtree has a separate [Apache License 2.0](benchmark/LICENSE).
