@@ -27,7 +27,7 @@ MicroASBench 将可部署的 Agent 服务、可配置的工作负载与副本设
 
 多智能体服务化的基础框架，必须在一台宿主机上先行启动以支撑整个k8s集群多智能体服务调度、协同、文件存储和监控
 
-详见`benchmark/scheduler/README.md`
+详见 [benchmark/scheduler/README.md](benchmark/scheduler/README.md)
 
 ### 负载注入、故障注入和数据收集
 

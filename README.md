@@ -27,7 +27,7 @@ MicroASBench combines deployable agent services, configurable workloads and repl
 
 The base framework for multi-agent services must first be started on a host machine. It supports scheduling, coordination, file storage, and monitoring for multi-agent services across the Kubernetes cluster.
 
-See `benchmark/scheduler/README.md` for details.
+See [benchmark/scheduler/README.md](benchmark/scheduler/README.md) for details.
 
 ### Workload injection, failure injection, and data collection
 
