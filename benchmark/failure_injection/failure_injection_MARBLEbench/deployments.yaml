@@ -47,6 +47,8 @@ spec:
 
             - name: MINIO_SECRET_KEY
               value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            - name: STORAGE_DOMAIN
+              value: minio.agent.network.com:12104
 
             - name: CENTER_ADDR
               value: http://$HOST_IP$:8848
@@ -120,6 +122,8 @@ spec:
 
             - name: MINIO_SECRET_KEY
               value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            - name: STORAGE_DOMAIN
+              value: minio.agent.network.com:12104
 
             - name: CENTER_ADDR
               value: http://$HOST_IP$:8848
@@ -205,6 +209,8 @@ spec:
 
             - name: MINIO_SECRET_KEY
               value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            - name: STORAGE_DOMAIN
+              value: minio.agent.network.com:12104
 
             - name: CENTER_ADDR
               value: http://$HOST_IP$:8848
@@ -290,6 +296,8 @@ spec:
 
             - name: MINIO_SECRET_KEY
               value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            - name: STORAGE_DOMAIN
+              value: minio.agent.network.com:12104
 
             - name: CENTER_ADDR
               value: http://$HOST_IP$:8848
@@ -375,6 +383,8 @@ spec:
 
             - name: MINIO_SECRET_KEY
               value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            - name: STORAGE_DOMAIN
+              value: minio.agent.network.com:12104
 
             - name: CENTER_ADDR
               value: http://$HOST_IP$:8848
@@ -460,6 +470,8 @@ spec:
 
             - name: MINIO_SECRET_KEY
               value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            - name: STORAGE_DOMAIN
+              value: minio.agent.network.com:12104
 
             - name: CENTER_ADDR
               value: http://$HOST_IP$:8848
@@ -555,6 +567,8 @@ spec:
 
             - name: MINIO_SECRET_KEY
               value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+            - name: STORAGE_DOMAIN
+              value: minio.agent.network.com:12104
 
             - name: CENTER_ADDR
               value: http://$HOST_IP$:8848
@@ -631,6 +645,8 @@ spec:
           value: AKIAIOSFODNN7EXAMPLE
         - name: MINIO_SECRET_KEY
           value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+        - name: STORAGE_DOMAIN
+          value: minio.agent.network.com:12104
         - name: CENTER_ADDR
           value: http://$HOST_IP$:8848
         image: 47.121.177.73:81/agent/agent-network-planner:latest
@@ -696,6 +712,8 @@ spec:
           value: AKIAIOSFODNN7EXAMPLE
         - name: MINIO_SECRET_KEY
           value: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+        - name: STORAGE_DOMAIN
+          value: minio.agent.network.com:12104
         - name: CENTER_ADDR
           value: http://$HOST_IP$:8848
         image: 47.121.177.73:81/agent/agent-network-summarizer:latest
