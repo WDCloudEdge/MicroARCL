@@ -28,20 +28,20 @@ After downloading, place them in the `benchmark/scheduler` directory.
 Run these commands from this directory:
 
 ```bash
-docker build --platform linux/amd64 -t microcerc-scheduler .
+docker build --platform linux/amd64 -t microarcl-scheduler .
 # Optionally create Docker named volumes
-# docker volume create microcerc-mysql
-# docker volume create microcerc-minio
+# docker volume create microarcl-mysql
+# docker volume create microarcl-minio
 
 # The following command uses bind mounts
-docker run -d --platform linux/amd64 --name microcerc-scheduler --restart unless-stopped \
+docker run -d --platform linux/amd64 --name microarcl-scheduler --restart unless-stopped \
   -e HOST_IP=192.168.0.109 \
   -v /your_local_dir/mysql:/var/lib/mysql \
   -v /your_local_dir/minio:/data/minio \
   -p 3306:3306 -p 8848:8848 -p 9848:9848 \
   -p 9000:9000 -p 9001:9001 -p 32196:32196 \
   -p 12104:12104 -p 35696:35696 -p 38001:38001 \
-  microcerc-scheduler
+  microarcl-scheduler
 ```
 
 Set `HOST_IP` to the host address through which the container can be reached. The startup script maps `minio.agent.network.com`, `db.agent.network.com`, `taskscheduling.agent.network.com`, and `center.agent.network.com` to this address. Configure DNS resolution for these domains on each K8s node outside the container as well, so agent service pods in K8s can reach the container for multi-agent scheduling and file storage.
@@ -49,5 +49,5 @@ Set `HOST_IP` to the host address through which the container can be reached. Th
 View the startup logs:
 
 ```bash
-docker logs -f microcerc-scheduler
+docker logs -f microarcl-scheduler
 ```

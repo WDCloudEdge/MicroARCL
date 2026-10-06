@@ -1,6 +1,6 @@
 """Batch-validate the agent RCA pipeline over all abnormal samples.
 
-Ground truth is parsed from the label file(s) (data/thingo/abnormal/*_label.txt);
+Ground truth is parsed from the label file(s) (data/MDOC/abnormal/*_label.txt);
 each sample is run label-free, then we judge whether the localization hit the
 ground-truth root-cause service.
 """
@@ -15,7 +15,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
 import run_agent_rca as R
 
-ABN = 'data/thingo/abnormal/load-5'
+ABN = 'data/MDOC/abnormal/load-5'
 TOP_K_CUTOFFS = tuple(range(1, 11))
 TIMING_STAGES = (
     'severity',

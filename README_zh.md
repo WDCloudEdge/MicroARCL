@@ -105,10 +105,6 @@ analysis/multi_replica_recheck.py
 analysis/marblebench_stats.py
 ```
 
-```bash
-./.venv/bin/python analysis/marblebench_stats.py
-```
-
 ### RQ2 脚本
 
 ```text
@@ -129,10 +125,10 @@ RQ1 和 RQ2 运行入口：
 ### RQ3、RQ4、RQ6 脚本
 
 ```text
-experiments/run_microarcl.py                 # 驱动（MicroARCL）
-experiments/run_baselines.py                 # 驱动（对比方法）
+experiments/run_microarcl.py                 # MicroARCL入口文件
+experiments/run_baselines.py                 # 对比方法入口文件
 experiments/microarcl/                       # MicroARCL runner 入口脚本
-experiments/baselines/{torai,microrca,causalrca}/   # 各对比方法 runner
+experiments/baselines/{torai,microrca,causalrca,lagrca}/   # 各对比方法 runner
 ```
 
 ```bash
@@ -141,11 +137,16 @@ experiments/baselines/{torai,microrca,causalrca}/   # 各对比方法 runner
 ./.venv/bin/python experiments/run_baselines.py --baseline MicroRCA --dataset all
 ./.venv/bin/python experiments/run_baselines.py --baseline CausalRCA --dataset all
 ./.venv/bin/python experiments/run_baselines.py --baseline CloudRanger --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline LagRCA --dataset all
 ```
 
-`--dataset`：`all`、`MDOC`、`MAR`、`SS`、`OB`、`TT`。`--baseline`：`MicroRCA`（无 trace，跳过 `SS`）、`TORAI`、`CausalRCA`（DAG-GNN）、`CloudRanger`（PC）。都在同一 `.venv`；共享引擎（`baseline_common.py`、`Config.py` 等）留在仓库根，runner 自行把它加入 `sys.path`。
+#### 参数及特殊注意点：
+1. `--dataset`：`all`、`MDOC`、`MAR`、`SS`、`OB`、`TT`。`--baseline`：基线方法，其中`MicroRCA`方法（无 trace，跳过 `SS`）
+2. 基础函数和文件（`baseline_common.py`、`Config.py` 等）在仓库根目录，其余启动脚本均放置在experiments文件夹下。
+3. LagRCA 首次运行会把数据集构建到 `experiments/baselines/lagrca/data/<ds>/`，再训练+评测。
 
-日志：`data/<dataset>/abnormal/`（MDOC/MAR）、`output/re2_materialized/`（SS/OB/TT）、`experiments/baselines/causalrca/{RCAEval/re2,MicroCERC}/`（CausalRCA/CloudRanger）。
+#### 结果解释：
+每个 方法 × 数据集 都以同一 batch-log 格式写到 `output/<dataset>/<method>/`目录下，包含总日志 + 各子层日志（其中MDOC/MAR 为三层级： `single|multi`/`load`，SS/OB/TT 为两个层级： `<fault>`）。每份日志包含：1.逐 sample 对比，用于进行 paired 统计性显著分析和检验 → 性能指标汇总，包含：（ACC@K / AVG@N / MRR，整体 + 分层 + 分类别）→ 端到端执行时间。
 
 ### RQ5 脚本
 

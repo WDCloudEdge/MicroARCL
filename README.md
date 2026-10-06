@@ -31,6 +31,10 @@ See [benchmark/scheduler/README.md](benchmark/scheduler/README.md) for details.
 
 ### Workload injection, failure injection, and data collection
 
+Required environment variable:
+
+1. `$HOST_IP$`: IP address of the host running the base multi-agent service scheduling and execution framework.
+
 MDOC: `benchmark/failure_injection/failure_injection_MDOC/run_all_services.sh`
 
 MAR: `benchmark/failure_injection/failure_injection_MARBLEbench/run_all_services.sh`
@@ -39,7 +43,7 @@ Single-service failures: `benchmark/failure_injection/failure_injection_{DATASET
 
 The scripts automatically start the MDOC or MAR multi-agent service cluster, inject workload with Locust and failures with Chaos Mesh YAML files, and collect metrics, logs, and execution graphs through `benchmark/data-collector`. The collected data is stored in `benchmark/data` and has the same format as the previously collected, publicly available datasets linked below.
 
-Replace the placeholders in:
+Replace or set the environment variables in:
 
 - `benchmark/failure_injection/failure_injection_MDOC/deployments.yaml`
 - `benchmark/failure_injection/failure_injection_MARBLEbench/deployments.yaml`
@@ -96,10 +100,6 @@ analysis/multi_replica_recheck.py
 analysis/marblebench_stats.py
 ```
 
-```bash
-./.venv/bin/python analysis/marblebench_stats.py
-```
-
 ### RQ2 Scripts
 
 ```text
@@ -120,10 +120,10 @@ Outputs: `analysis/figures/`, `analysis/tables/`, `data/<dataset>/diag_common_mo
 ### RQ3, RQ4, and RQ6 Scripts
 
 ```text
-experiments/run_microarcl.py                 # driver (MicroARCL)
-experiments/run_baselines.py                 # driver (comparison methods)
+experiments/run_microarcl.py                 # MicroARCL entry point
+experiments/run_baselines.py                 # comparison-method entry point
 experiments/microarcl/                       # MicroARCL runner entry scripts
-experiments/baselines/{torai,microrca,causalrca}/   # per-baseline runners
+experiments/baselines/{torai,microrca,causalrca,lagrca}/   # per-baseline runners
 ```
 
 ```bash
@@ -132,11 +132,18 @@ experiments/baselines/{torai,microrca,causalrca}/   # per-baseline runners
 ./.venv/bin/python experiments/run_baselines.py --baseline MicroRCA --dataset all
 ./.venv/bin/python experiments/run_baselines.py --baseline CausalRCA --dataset all
 ./.venv/bin/python experiments/run_baselines.py --baseline CloudRanger --dataset all
+./.venv/bin/python experiments/run_baselines.py --baseline LagRCA --dataset all
 ```
 
-`--dataset`: `all`, `MDOC`, `MAR`, `SS`, `OB`, `TT`. `--baseline`: `MicroRCA` (skips `SS`, no traces), `TORAI`, `CausalRCA` (DAG-GNN), `CloudRanger` (PC). All run on the same `.venv`; the shared engine (`baseline_common.py`, `Config.py`, …) stays at the repo root and the runners add it to `sys.path`.
+#### Parameters and special notes
 
-Logs: `data/<dataset>/abnormal/` (MDOC/MAR), `output/re2_materialized/` (SS/OB/TT), `experiments/baselines/causalrca/{RCAEval/re2,MicroCERC}/` (CausalRCA/CloudRanger).
+1. `--dataset`: `all`, `MDOC`, `MAR`, `SS`, `OB`, `TT`. `--baseline` selects the baseline method; `MicroRCA` has no traces and skips `SS`.
+2. Shared functions and files (`baseline_common.py`, `Config.py`, etc.) are in the repository root; the other entry scripts are under `experiments`.
+3. On its first run, LagRCA builds the dataset in `experiments/baselines/lagrca/data/<ds>/`, then trains and evaluates.
+
+#### Interpreting the results
+
+Every method × dataset writes the same batch-log format to `output/<dataset>/<method>/`, including an overall log and sublevel logs (three levels for MDOC/MAR: `single|multi`/`load`; two levels for SS/OB/TT: `<fault>`). Each log contains per-sample comparisons for paired statistical significance analysis and testing → a performance-metric summary (ACC@K / AVG@N / MRR, overall + by level + by category) → end-to-end execution time.
 
 ### RQ5 Scripts
 

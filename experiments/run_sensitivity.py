@@ -42,7 +42,7 @@ def _point(selector, k, mu, tag, limit):
     cmd = [PY, os.path.join(HERE, '_agent_runner.py'),
            '--dataset', selector, '--k', k, '--mu', mu,
            '--detector', 'abirch', '--fuse', 'wsum', '--align', 'true',
-           '--tag', tag]
+           '--out-method', 'MicroARCL', '--tag', tag]
     if limit:
         cmd += ['--limit', limit]
     _run(cmd)

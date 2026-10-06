@@ -21,20 +21,20 @@ https://www.dropbox.com/scl/fi/654n537pu02rgb7tjj454/scheduler_bf.zip?rlkey=tgn6
 在本目录执行：
 
 ```bash
-docker build --platform linux/amd64 -t microcerc-scheduler .
+docker build --platform linux/amd64 -t microarcl-scheduler .
 # 可选使用docker命名卷挂载
-# docker volume create microcerc-mysql
-# docker volume create microcerc-minio
+# docker volume create microarcl-mysql
+# docker volume create microarcl-minio
 
 # 当前指令使用绑定挂载方式
-docker run -d --platform linux/amd64 --name microcerc-scheduler --restart unless-stopped \
+docker run -d --platform linux/amd64 --name microarcl-scheduler --restart unless-stopped \
   -e HOST_IP=192.168.0.109 \
   -v /your_local_dir/mysql:/var/lib/mysql \
   -v /your_local_dir/minio:/data/minio \
   -p 3306:3306 -p 8848:8848 -p 9848:9848 \
   -p 9000:9000 -p 9001:9001 -p 32196:32196 \
   -p 12104:12104 -p 35696:35696 -p 38001:38001 \
-  microcerc-scheduler
+  microarcl-scheduler
 ```
 
 `HOST_IP` 应为容器可以被访问的宿主机地址。启动脚本会把 `minio.agent.network.com`、`db.agent.network.com`、`taskscheduling.agent.network.com` 和 `center.agent.network.com` 映射到此地址。容器外的各台K8S节点也需要自行配置这些域名的解析，使K8S中各智能体服务pod能够访问该容器以进行多智能体调度和文件存储。
@@ -42,5 +42,5 @@ docker run -d --platform linux/amd64 --name microcerc-scheduler --restart unless
 查看启动日志：
 
 ```bash
-docker logs -f microcerc-scheduler
+docker logs -f microarcl-scheduler
 ```

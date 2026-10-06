@@ -15,7 +15,7 @@ Some suites, including the available RE2 Sock Shop cases, have no traces.)
 The root-cause service and fault type are encoded in the directory name,
 `{suite}_{service}_{fault}_{instance}` (e.g. `re2ob_adservice_cpu_1`).
 
-MicroARCL (run_all_abnormal_birch_align_MicroARCL.py) consumes the MicroCERC
+MicroARCL (run_all_abnormal_birch_align_MicroARCL.py)
 on-disk layout instead: per-service metric CSVs under `<sample>/<ns>/metrics/`
 plus a service-level `<sample>/<ns>/graph/call_chains.json`. Rather than rewrite
 the whole disk-coupled pipeline, this module *materializes* each RE2 case into
@@ -301,7 +301,7 @@ def ensure_graph_csv(sample_dir, ns='re2'):
 
 
 def materialize_case(case_dir, out_root, ns='re2', force=False):
-    """Convert one RE2 case into the MicroCERC layout under
+    """Convert one RE2 case into the MicroARCL layout under
     `out_root/<case>/<ns>/`. Returns (sample_dir, inject_time, services).
     Cached: skips work when the metrics dir already exists unless `force`."""
     case_name = os.path.basename(os.path.normpath(case_dir))

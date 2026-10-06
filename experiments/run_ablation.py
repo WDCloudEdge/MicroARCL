@@ -51,7 +51,7 @@ def run_variant(name, variant, limit=None):
     cmd = [PY, os.path.join(HERE, '_agent_runner.py'),
            '--dataset', selector, '--k', k, '--mu', mu,
            '--detector', detector, '--fuse', fuse, '--align', align,
-           '--tag', f'ablation_{name}_{variant}']
+           '--out-method', 'MicroARCL', '--tag', f'ablation_{name}_{variant}']
     if limit:
         cmd += ['--limit', limit]
     _run(cmd)

@@ -1,7 +1,7 @@
 """
 GNN coarse ranker for the single-namespace agent-network dataset.
 
-Reuses the original MicroCERCL machinery (graph.py heterogeneous topology
+Reuses the original MicroARCL machinery (graph.py heterogeneous topology
 stack + model.py unsupervised GNN + bp objective) but builds the topology
 stack OFFLINE from graph.csv (no Prometheus / Kubernetes client), so it can
 run directly on a collected sample directory.

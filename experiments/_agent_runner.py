@@ -36,6 +36,8 @@ def main():
                     choices=('wsum', 'gate', 'max', 'mean', 'rrf'))
     ap.add_argument('--align', default='true')
     ap.add_argument('--tag', required=True)
+    ap.add_argument('--out-method', default=None,
+                    help='method label for the output/<dataset>/<method>/ tree')
     ap.add_argument('--limit', type=int, default=None,
                     help='cap number of samples (smoke test)')
     args = ap.parse_args()
@@ -44,7 +46,7 @@ def main():
     from baseline_common import main as run_main
 
     opts = dict(method=args.method, align=_bool(args.align), tag=args.tag,
-                detector=args.detector)
+                detector=args.detector, out_method=args.out_method)
     if args.method == 'relrrf':                     # MicroARCL fusion knobs
         opts.update(variant='both', k_rrf=60, include_residual=False,
                     k=args.k, mu=args.mu, fuse=args.fuse)

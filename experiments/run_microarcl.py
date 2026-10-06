@@ -55,11 +55,11 @@ def run_dataset(name, limit=None):
         cmd = [PY, os.path.join(HERE, '_agent_runner.py'),
                '--dataset', selector, '--k', k, '--mu', MU,
                '--detector', 'abirch', '--fuse', 'wsum', '--align', 'true',
-               '--tag', f'microarcl_rq3_{name}']
+               '--out-method', 'MicroARCL', '--tag', f'microarcl_rq3_{name}']
         if limit:
             cmd += ['--limit', limit]
     else:
-        cmd = [PY, os.path.join(REPO,
+        cmd = [PY, os.path.join(HERE, 'microarcl',
                'run_all_abnormal_RE2_abirch_labelwin_MicroARCL.py'),
                '--root', RCAEVAL_ROOT, '--suite', selector]
         if limit:

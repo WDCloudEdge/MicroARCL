@@ -1,6 +1,6 @@
 """Shared core for the RCA comparison baselines (2x2 ablation).
 
-Anomaly detection is Birch (the original MicroCERCL detector), NOT the severity
+Anomaly detection is Birch (the original MicroARCL detector), NOT the severity
 detector used by the proposed method. Two axes:
   * align   : whether QPS<->metric lag alignment (B.1) is applied before Birch
               and before the adaptive window.
@@ -40,7 +40,7 @@ from ppr_localize import ppr_rank
 import residual_localize as RES
 from execution_graph import (load_execution_graphs, aggregate_topk_slices,
                              build_log_evidence, graph_failed_for_services)
-from llm_localize import llm_localize
+# from llm_localize import llm_localize
 
 
 # Root-cause service -> category for per-category breakdown.
@@ -325,39 +325,39 @@ def _run_relrrf(cfg, sample_dir, align, detector='severity',
     return {'order': order, 'timing': t}
 
 
-def _run_llm(cfg, sample_dir, align, detector='birch', **_):
-    t = {}
-    d0 = time.perf_counter()
-    ctx = _prep(cfg, sample_dir, align, detector)
-    t['detect'] = time.perf_counter() - d0
-    ranking = ctx['ranking']
-    topk = [s for s, _, _ in ranking[:cfg.llm_topk]]
-    print(f'[{detector}] {len(ranking)} anomalous svc; feeding LLM top-k: {topk}')
-    if not topk:
-        return {'order': [], 'final_root_cause': '', 'timing': t}
-    d1 = time.perf_counter()
-    graphs = load_execution_graphs(ctx['ns_dir'], max_traces=None,
-                                   candidate_services=topk)
-    cap = getattr(cfg, 'exec_max_traces', 40)
-    use_graphs = graphs[:cap] if cap and cap > 0 else graphs
-    log_evidence = build_log_evidence(
-        ctx['ns_dir'], topk, ctx['start'], ctx['end'], cfg,
-        anomaly_type_union=['unknown'])
-    candidate_metadata = {
-        svc: {'selected_by': 'birch',
-              'severity_rank': i, 'severity_score': round(float(sc), 4),
-              'gnn_rank': None, 'gnn_score': None}
-        for i, (svc, sc, _) in enumerate(ranking[:cfg.llm_topk], start=1)}
-    agg = aggregate_topk_slices(
-        topk, use_graphs, cfg, log_evidence=log_evidence,
-        shared_over_services=topk, coarse_ranking=ranking,
-        candidate_metadata=candidate_metadata, gnn_service_ranking=[],
-        trace_analysis_graphs=graphs)
-    result = llm_localize(agg, cfg)
-    t['localize'] = time.perf_counter() - d1
-    order = result.get('reranked_topk') or []
-    return {'order': order, 'final_root_cause': str(result.get('root_cause') or ''),
-            'timing': t}
+# def _run_llm(cfg, sample_dir, align, detector='birch', **_):
+#     t = {}
+#     d0 = time.perf_counter()
+#     ctx = _prep(cfg, sample_dir, align, detector)
+#     t['detect'] = time.perf_counter() - d0
+#     ranking = ctx['ranking']
+#     topk = [s for s, _, _ in ranking[:cfg.llm_topk]]
+#     print(f'[{detector}] {len(ranking)} anomalous svc; feeding LLM top-k: {topk}')
+#     if not topk:
+#         return {'order': [], 'final_root_cause': '', 'timing': t}
+#     d1 = time.perf_counter()
+#     graphs = load_execution_graphs(ctx['ns_dir'], max_traces=None,
+#                                    candidate_services=topk)
+#     cap = getattr(cfg, 'exec_max_traces', 40)
+#     use_graphs = graphs[:cap] if cap and cap > 0 else graphs
+#     log_evidence = build_log_evidence(
+#         ctx['ns_dir'], topk, ctx['start'], ctx['end'], cfg,
+#         anomaly_type_union=['unknown'])
+#     candidate_metadata = {
+#         svc: {'selected_by': 'birch',
+#               'severity_rank': i, 'severity_score': round(float(sc), 4),
+#               'gnn_rank': None, 'gnn_score': None}
+#         for i, (svc, sc, _) in enumerate(ranking[:cfg.llm_topk], start=1)}
+#     agg = aggregate_topk_slices(
+#         topk, use_graphs, cfg, log_evidence=log_evidence,
+#         shared_over_services=topk, coarse_ranking=ranking,
+#         candidate_metadata=candidate_metadata, gnn_service_ranking=[],
+#         trace_analysis_graphs=graphs)
+#     result = llm_localize(agg, cfg)
+#     t['localize'] = time.perf_counter() - d1
+#     order = result.get('reranked_topk') or []
+#     return {'order': order, 'final_root_cause': str(result.get('root_cause') or ''),
+#             'timing': t}
 
 
 def _run_residual(cfg, sample_dir, align, detector='severity',
@@ -464,7 +464,7 @@ def _run_batch(method, align, tag, detector='birch', **opts):
         try:
             fn = {'ppr': _run_ppr, 'direct': _run_direct,
                   'residual': _run_residual,
-                  'relrrf': _run_relrrf}.get(method, _run_llm)
+                  'relrrf': _run_relrrf}.get(method)
             res = fn(cfg, sdir, align, detector, **opts)
         except Exception as exc:
             err = f'{type(exc).__name__}: {exc}'
@@ -495,11 +495,23 @@ def _write_summary_log(path, header, tag, rows):
             _summarize(tag, rows)
 
 
-def main(method, align, tag, detector='birch', **opts):
+# friendly dataset label for the output/ tree
+_DATASET_LABEL = {'MDOC': 'MDOC', 'MARBLEBench': 'MAR'}
+
+
+def main(method, align, tag, detector='birch', out_method=None, **opts):
     started_at = datetime.now().astimezone()
     t0 = time.perf_counter()
     ts = started_at.strftime('%Y-%m-%d-%H:%M:%S')
-    overall_log = os.path.join(ABN_BASE, f'batch-{tag}_{ts}.log')   # everything
+    # output base: output/<dataset>/<method>/ when out_method is given (the
+    # experiments/ drivers set it); otherwise the legacy data/<ds>/abnormal/.
+    if out_method:
+        ds = _DATASET_LABEL.get(os.environ.get('AGENT_DATASET', 'MDOC'), 'MDOC')
+        out_base = os.path.join('output', ds, out_method)
+        os.makedirs(out_base, exist_ok=True)
+    else:
+        out_base = ABN_BASE
+    overall_log = os.path.join(out_base, f'batch-{tag}_{ts}.log')   # everything
     rows = None
     with open(overall_log, 'w', encoding='utf-8') as lf:
         with redirect_stdout(_Tee(sys.stdout, lf)), \
@@ -512,14 +524,16 @@ def main(method, align, tag, detector='birch', **opts):
                 print(f'\nBatch wall-clock: {time.perf_counter() - t0:.1f}s')
     if not rows:
         return
-    # per-group logs (abnormal/<group>/) and per-load logs (abnormal/<group>/<load>/)
+    # per-group logs (<base>/<group>/) and per-load logs (<base>/<group>/<load>/)
     for g in sorted({r['group'] for r in rows}):
         gsub = [r for r in rows if r['group'] == g]
-        _write_summary_log(os.path.join(ABN_BASE, g, f'batch-{tag}_{ts}.log'),
+        os.makedirs(os.path.join(out_base, g), exist_ok=True)
+        _write_summary_log(os.path.join(out_base, g, f'batch-{tag}_{ts}.log'),
                            f'Per-group [{g}] log for [{tag}]  ({ts})', tag, gsub)
-        print(f'  per-group log: {os.path.join(ABN_BASE, g)}')
+        print(f'  per-group log: {os.path.join(out_base, g)}')
         for ld in sorted({r['load'] for r in gsub}):
             lsub = [r for r in gsub if r['load'] == ld]
+            os.makedirs(os.path.join(out_base, g, ld), exist_ok=True)
             _write_summary_log(
-                os.path.join(ABN_BASE, g, ld, f'batch-{tag}_{ts}.log'),
+                os.path.join(out_base, g, ld, f'batch-{tag}_{ts}.log'),
                 f'Per-load [{g}/{ld}] log for [{tag}]  ({ts})', tag, lsub)
