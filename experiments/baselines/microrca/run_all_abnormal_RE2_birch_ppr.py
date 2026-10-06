@@ -37,7 +37,7 @@ from run_agent_rca import _service_rank
 from baseline_common import _run_ppr
 import re2_adapter as A
 import results_log
-from run_all_abnormal_RE2_birch_align_MicroARCL import (
+from experiments.microarcl.run_all_abnormal_RE2_birch_align_MicroARCL import (
     NS, _summarize, _fault_cat, _resolve_root)
 from run_all_abnormal_RE2_birch_labelwin_MicroARCL import _label_window
 

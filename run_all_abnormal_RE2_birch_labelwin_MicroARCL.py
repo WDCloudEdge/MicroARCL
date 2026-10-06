@@ -17,17 +17,6 @@ Usage:
     python run_all_abnormal_RE2_birch_labelwin_MicroARCL.py \
         --root /path/to/RCAEval/data --suite re2ob [--pre 180 --post 180]
 """
-# --- path bootstrap: shared engine stays at repo root; add it + sibling runner dirs ---
-import os as _os, sys as _sys
-_r = _os.path.dirname(_os.path.abspath(__file__))
-while _r != _os.path.dirname(_r) and not _os.path.exists(_os.path.join(_r, 'baseline_common.py')):
-    _r = _os.path.dirname(_r)
-for _p in (_r, _os.path.join(_r, 'experiments', 'microarcl'),
-           _os.path.join(_r, 'experiments', 'baselines', 'microrca'),
-           _os.path.join(_r, 'experiments', 'baselines', 'torai')):
-    if _p not in _sys.path:
-        _sys.path.insert(0, _p)
-# --- end path bootstrap ---
 import os
 import sys
 import time
@@ -43,7 +32,6 @@ from run_agent_rca import _service_rank
 from baseline_common import _run_relrrf
 from util.utils import time_string_2_timestamp
 import re2_adapter as A
-import results_log
 # reuse the shared discovery / summary / fault-category helpers
 from experiments.microarcl.run_all_abnormal_RE2_birch_align_MicroARCL import (
     NS, _summarize, _fault_cat, _resolve_root)
@@ -73,7 +61,7 @@ def _run_batch(root, out_root, tag, pre, post, limit=None, suite=None,
     cfg = Config()
     cfg.agent_namespace = NS
     cfg.anomaly_threshold = birch_thr                 # RE2 scale (see align runner)
-    cfg.lat_percentile = 'p50'                         # RE2: p50 latency voter
+    cfg.lat_percentile = 'p90'                         # RE2: p90 latency voter
     cases = A.discover_cases(root)
     if suite:
         cases = [c for c in cases if suite in os.path.basename(os.path.normpath(c))]
@@ -86,7 +74,8 @@ def _run_batch(root, out_root, tag, pre, post, limit=None, suite=None,
     for cdir in cases:
         case = os.path.basename(os.path.normpath(cdir))
         gt, fault, _ = A.parse_case_label(cdir)
-        results_log.sample_banner(_fault_cat(fault), case, gt, fault)
+        print('\n' + '#' * 70 + f'\n##### {case} (gt={gt}, fault={fault})\n'
+              + '#' * 70)
         started = time.perf_counter()
         timing, res, err = {}, None, None
         try:
@@ -101,7 +90,7 @@ def _run_batch(root, out_root, tag, pre, post, limit=None, suite=None,
             if gt not in services:
                 print(f'[warn] gt {gt!r} not among {len(services)} services; '
                       f'rank will be a miss.')
-            res = _run_relrrf(cfg, sample_dir, align=True, detector='abirch',
+            res = _run_relrrf(cfg, sample_dir, align=True, detector='birch',
                               variant='both', k_rrf=60, include_residual=False,
                               k=15, mu=1.0, fuse='wsum')
             if not res.get('order'):                  # Birch still silent -> full set
@@ -128,12 +117,8 @@ def _run_batch(root, out_root, tag, pre, post, limit=None, suite=None,
         rows.append({**base, 'status': 'success', 'rank': rank,
                      'top1': res['order'][0] if res['order'] else None})
         print(f'[eval] gt rank = {rank}')
-    results_log.summarize(tag, rows, kind='re2')
+    _summarize(tag, rows)
     return rows
-
-
-SUITE2DS = {'re2ss': 'SS', 're2ob': 'OB', 're2tt': 'TT'}
-METHOD = 'MicroARCL'
 
 
 def main():
@@ -154,19 +139,24 @@ def main():
     ap.add_argument('--force', action='store_true')
     args = ap.parse_args()
 
+    from run_all_abnormal import _Tee
     root = _resolve_root(args.root)
     os.makedirs(args.out, exist_ok=True)
-    tag = 'RE2_abirch_labelwin_MicroARCL'
-    suites = [args.suite] if args.suite else list(SUITE2DS)
-    for su in suites:
-        ds = SUITE2DS.get(su, su)
-        hdr = [f'MicroARCL (RE2 label window) on {ds}  root={root}  '
-               f'window=[inject-{args.pre}s, inject+{args.post}s]']
-        with results_log.open_batch(ds, METHOD, tag, hdr) as (log_root, ts):
-            rows = _run_batch(root, args.out, tag, args.pre, args.post,
-                              limit=args.limit, suite=su, force=args.force,
-                              birch_thr=args.birch_thr)
-        results_log.write_sublogs(log_root, ts, tag, rows, kind='re2')
+    tag = 'RE2_birch_labelwin_MicroARCL' + (f'_{args.suite}' if args.suite else '')
+    ts = datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
+    log_path = os.path.join(args.out, f'batch-{tag}_{ts}.log')
+    t0 = time.perf_counter()
+    with open(log_path, 'w', encoding='utf-8') as lf:
+        with redirect_stdout(_Tee(sys.stdout, lf)), \
+                redirect_stderr(_Tee(sys.stderr, lf)):
+            print(f'Batch start: {datetime.now().isoformat(timespec="seconds")}')
+            print(f'Log: {log_path}')
+            try:
+                _run_batch(root, args.out, tag, args.pre, args.post,
+                           limit=args.limit, suite=args.suite, force=args.force,
+                           birch_thr=args.birch_thr)
+            finally:
+                print(f'\nBatch wall-clock: {time.perf_counter() - t0:.1f}s')
 
 
 if __name__ == '__main__':
