@@ -61,9 +61,8 @@ MAR:
 
 ### 数据集
 
-MDOC 和 MAR 下载地址: https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL
-SS TT OB下载源地址: https://github.com/phamquiluan/RCAEval
-为了方便复现，https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL中已包含了SS TT OB数据集，数据集详情可参考源链接
+下载地址: https://figshare.com/s/4c6439c4e399b4b78f8c
+为了方便复现，https://figshare.com/s/4c6439c4e399b4b78f8c已包含MDOC MAR SS TT OB数据集，其中SS TT OB数据集来源于https://github.com/phamquiluan/RCAEval
 
 
 ## MicroARCL 框架
@@ -177,6 +176,12 @@ experiments/run_sensitivity.py
 
 计划扩展 MicroASBench，加入更多 Agent 应用和 Agent 特有的故障类型，进一步评估根因定位效果。
 
-## 许可证
+## 许可与第三方来源
 
-本仓库采用 [Apache License 2.0](LICENSE)。
+MicroARCL 原创代码、复现实验脚本、MDOC/MAR 数据及原创数据处理内容采用 [MIT License](LICENSE)。
+
+- **RCAEval：**SS、TT、OB 数据及仓库内引用的 RCAEval 代码来源于 [RCAEval](https://github.com/phamquiluan/RCAEval)。其自有代码和数据采用 [MIT License](third_party/RCAEval/LICENSE)（版权 © 2024 Luan Pham）。
+- **LagRCA：**基线改编自 [LagRCA](https://github.com/kjhjk566/LagRCA)；上游仓库未声明许可证。
+- **CausalRCA：**基线基于 [CausalRCA](https://github.com/AXinx/CausalRCA_code)；上游仓库未声明许可证。
+
+`benchmark/` 子目录另采用 [Apache License 2.0](benchmark/LICENSE)。
