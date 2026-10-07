@@ -90,5 +90,4 @@ python main.py \
 - `--lr`: Learning rate. Default: `0.001`.
 - `--window_size`: Size of the sliding time window. Default: `10`.
 - `--stride`: Step size for the sliding window. Default: `1`.
-
-
+- `--limit`: Maximum number of cases to evaluate. By default, evaluate all cases.

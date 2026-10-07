@@ -85,7 +85,7 @@ def _run(cmd, cwd=REPO, env=None):
     subprocess.run([str(c) for c in cmd], cwd=cwd, env=env, check=True)
 
 
-def run_dataset(baseline, name, limit=None):
+def run_dataset(baseline, name, limit=None, epochs=100, stride=1):
     spec = BASELINES[baseline].get(name)
     if spec is None:
         print("=" * 72, f"\n[RQ3/4/6 baseline] {baseline} on {name}: SKIPPED "
@@ -134,8 +134,9 @@ def run_dataset(baseline, name, limit=None):
             build = LAGRCA_BUILD[ds]
             _run([PY, os.path.join(LAGRCA_DIR, build[0]), *build[1:]],
                  cwd=LAGRCA_DIR, env=env)
-        margs = ['-ds', ds, '--stride', '3', '--epochs',
-                 str(limit) if limit else '20']       # --limit N -> quick N-epoch smoke
+        margs = ['-ds', ds, '--stride', str(stride), '--epochs', str(epochs)]
+        if limit is not None:
+            margs += ['--limit', str(limit)]
         _run([PY, os.path.join(LAGRCA_DIR, 'main.py'), *margs],
              cwd=LAGRCA_DIR, env=env)
 
@@ -145,10 +146,15 @@ def main():
     ap.add_argument('--baseline', default='TORAI', choices=tuple(BASELINES))
     ap.add_argument('--dataset', default='all', choices=('all', *ORDER))
     ap.add_argument('--limit', type=int, default=None)
+    ap.add_argument('--epochs', type=int, default=100,
+                    help='LagRCA training epochs (default: 100)')
+    ap.add_argument('--stride', type=int, default=1,
+                    help='LagRCA window stride (default: 1)')
     args = ap.parse_args()
     names = ORDER if args.dataset == 'all' else [args.dataset]
     for name in names:
-        run_dataset(args.baseline, name, limit=args.limit)
+        run_dataset(args.baseline, name, limit=args.limit,
+                    epochs=args.epochs, stride=args.stride)
     print("=" * 72, "\nDONE. Baseline metrics/timing are in each run's batch log.")
 
 

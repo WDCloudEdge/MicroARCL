@@ -31,7 +31,9 @@ from module.RootCauseScorer import RootCauseScorer
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--limit', type=int, default=None,
+                        help='evaluate at most this many cases')
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--window_size', type=int, default=10)
     parser.add_argument('--stride', type=int, default=1)
@@ -165,6 +167,8 @@ if __name__ == "__main__":
     else:
         with open(case_path, 'rb') as f:
             test_case = pickle.load(f)
+        if args.limit is not None:
+            test_case = test_case[:args.limit]
 
         all_ans = []
         all_labels = []
