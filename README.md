@@ -2,8 +2,6 @@
 
 **Root Cause Localization for Microservice-based Agent Systems**
 
-[中文](README_zh.md) · English
-
 MicroARCL is an unsupervised root cause localization method for microservice-based agent systems. This repository accompanies the paper *Root Cause Localization for Microservice-based Agent Systems*. The paper also introduces **MicroASBench** for studying failures in agent services.
 
 ## Paper overview

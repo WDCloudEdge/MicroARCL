@@ -1,7 +1,5 @@
 # Build and Run the Multi-Agent Service Scheduling and Execution Framework
 
-[English](README.md) | [中文](README_zh.md)
-
 ## Overview
 
 The multi-agent service scheduling and execution framework consists of four parts. It supports the operation, coordination, context management, and multimodal file storage of service-based (containerized) multi-agent systems. Both the MDOC and MAR multi-agent service systems use it as infrastructure for rapid integration, deployment, and operation.
