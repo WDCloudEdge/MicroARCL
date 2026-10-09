@@ -37,7 +37,7 @@ train-ticket/      TrainTicket: 46 Deployments
 prometheus/        kube-prometheus: operator, Prometheus, Alertmanager,
                    Grafana, kube-state-metrics, node-exporter,
                    blackbox-exporter, prometheus-adapter
-istio-1.13.4/      Istio install manifests and gateway configs
+istio/             Istio `istioctl` completion scripts and certificate tooling
 ```
 
 `prometheus/setup/` holds the CustomResourceDefinitions and must be applied before the
@@ -120,19 +120,38 @@ make service-deploy
 ```
 
 Each system is applied into its own namespace (`bookinfo`, `hipster`, `sock-shop`,
-`train-ticket`). Istio sidecar injection is enabled per namespace:
+`train-ticket`). Hipster does not declare a namespace in its manifest, so the `-n hipster`
+flag is required. Enable sidecar injection before deploying if the system should join the
+mesh — see [Install Istio](#4-install-istio) below.
+
+## 4. Install Istio
+
+Download the release and put `istioctl` on the path:
+
+```bash
+curl -L https://istio.io/downloadIstio | ISTIO_VERSION=1.15.1 sh -
+cd istio-1.15.1
+export PATH=$PWD/bin:$PATH
+```
+
+Install the control plane with tracing enabled; `istio/tracing.yaml` carries the same
+settings:
+
+```bash
+istioctl install -f istio/tracing.yaml
+kubectl get pods -n istio-system
+```
+
+Enable sidecar injection for each namespace that should join the mesh, then restart its
+workloads:
 
 ```bash
 kubectl label namespace bookinfo istio-injection=enabled
+kubectl rollout restart deployment -n bookinfo
 ```
 
-For Istio, install the control plane and point tracing at Jaeger:
-
-```bash
-istioctl install \
-  --set meshConfig.defaultConfig.tracing.zipkin.address=<JAEGER_HOST>:9411 \
-  --set meshConfig.defaultConfig.tracing.sampling=100
-```
+`istio/tools/` holds the `istioctl` completion scripts and the cfssl Makefiles used to
+generate mesh certificates.
 
 ## Data operation
 

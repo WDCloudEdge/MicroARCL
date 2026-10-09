@@ -5,6 +5,6 @@ spec:
     enableTracing: true
     defaultConfig:
       tracing:
-        sampling: 10
+        sampling: 100
         zipkin:
-          address: 172.26.146.180:9411
+          address: 192.168.31.171:9411
