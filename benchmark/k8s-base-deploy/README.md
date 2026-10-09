@@ -28,6 +28,9 @@ the cluster, and are reached through the hostnames `minio.agent.network.com` and
 ## Layout
 
 ```
+cluster/           Cluster bootstrap manifests
+  kube-init.yaml              kubeadm InitConfiguration for the control plane
+  kube-flannel.yml            Flannel DaemonSet bound to the tunnel interface
 bookinfo/          Bookinfo: 6 Deployments + 4 Services
   bookinfo.yaml               default topology
   bookinfo-experiment.yaml    reviews-v1 and reviews-v3 scaled to 0
@@ -76,21 +79,56 @@ The nodes reach each other over a WireGuard tunnel (`wg1`), each holding a virtu
 `30.0.0.0/24`; physical neighbours are kept on the local link with per-node routes. This
 keeps the cluster independent of the cloud server that terminates the tunnel.
 
+Every node needs swap disabled (after each reboot), the time zone set, and the tunnel
+addresses in `/etc/hosts`:
+
 ```bash
-kubeadm init --config kube-init.yaml --ignore-preflight-errors=all
+sudo swapoff -a
+sudo timedatectl set-timezone Asia/Shanghai
 ```
 
-Flannel is bound to the tunnel interface, otherwise pod traffic bypasses it:
+Initialise the control plane from `cluster/kube-init.yaml`, which pins the Kubernetes
+version, the pod and service subnets, and IPVS proxy mode:
 
 ```bash
-kubectl apply -f kube-flannel.yml      # built with -iface=wg1
+kubeadm init --config cluster/kube-init.yaml --ignore-preflight-errors=all
 ```
 
-When cross-subnet nodes cannot reach the API server through the tunnel, a MASQUERADE rule
-is required on each of them:
+Join workers with the command printed by:
 
 ```bash
-sudo iptables -t nat -A POSTROUTING -d <MASTER_VIP>/32 -p tcp --dport 6443 -o wg1 -j MASQUERADE
+kubeadm token create --print-join-command
+```
+
+Install Flannel from `cluster/kube-flannel.yml`. Its DaemonSet runs `flanneld` with
+`--iface=wg1` so that VXLAN traffic follows the tunnel; without it pods on different
+subnets cannot reach each other:
+
+```bash
+kubectl apply -f cluster/kube-flannel.yml
+```
+
+Verify the tunnel and pod-to-pod connectivity:
+
+```bash
+bridge fdb show | grep flannel          # entries pointing at the peer virtual IPs
+kubectl get pods -n kube-flannel -o wide
+```
+
+When a node on another subnet cannot reach the API server through the tunnel, add a
+MASQUERADE rule. The packet is DNATed to the control plane address but leaves through
+`wg1` without source translation, so the reply bypasses conntrack on the sending node and
+the connection never establishes; Flannel then crash-loops on the same failure:
+
+```bash
+sudo iptables -t nat -A POSTROUTING -d 30.0.0.69/32 -p tcp --dport 6443 -o wg1 -j MASQUERADE
+```
+
+Persist the rule across reboots:
+
+```bash
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save
 ```
 
 ## 2. Deploy the monitoring stack
