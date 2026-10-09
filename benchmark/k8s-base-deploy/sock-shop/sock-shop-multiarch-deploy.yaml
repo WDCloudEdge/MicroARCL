@@ -1,0 +1,977 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sock-shop
+
+---
+# ============================================================
+# session-db (Redis)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-db
+  namespace: sock-shop
+  labels:
+    name: session-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: session-db
+  template:
+    metadata:
+      labels:
+        name: session-db
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: session-db
+          image: 47.121.177.73:81/sock-shop-multiarch/session-db:latest
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+      volumes:
+        - name: redis-data
+          emptyDir: {}
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-db
+  namespace: sock-shop
+  labels:
+    name: session-db
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    name: session-db
+
+---
+# ============================================================
+# catalogue-db
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogue-db
+  namespace: sock-shop
+  labels:
+    name: catalogue-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: catalogue-db
+  template:
+    metadata:
+      labels:
+        name: catalogue-db
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: catalogue-db
+          image: 47.121.177.73:81/sock-shop-multiarch/catalogue-db:latest
+          ports:
+            - containerPort: 3306
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalogue-db
+  namespace: sock-shop
+  labels:
+    name: catalogue-db
+spec:
+  ports:
+    - port: 3306
+      targetPort: 3306
+  selector:
+    name: catalogue-db
+
+---
+# ============================================================
+# catalogue (Go)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogue
+  namespace: sock-shop
+  labels:
+    name: catalogue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: catalogue
+  template:
+    metadata:
+      labels:
+        name: catalogue
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: catalogue
+          image: 47.121.177.73:81/sock-shop-multiarch/catalogue:latest
+          command: ["/app"]
+          args:
+            - -port=8080
+          env:
+            - name: DB
+              value: catalogue-db
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+              add:
+                - NET_BIND_SERVICE
+            readOnlyRootFilesystem: true
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalogue
+  namespace: sock-shop
+  labels:
+    name: catalogue
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    name: catalogue
+
+---
+# ============================================================
+# carts-db (MongoDB)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carts-db
+  namespace: sock-shop
+  labels:
+    name: carts-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: carts-db
+  template:
+    metadata:
+      labels:
+        name: carts-db
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: carts-db
+          image: 47.121.177.73:81/sock-shop-multiarch/carts-db:latest
+          ports:
+            - containerPort: 27017
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carts-db
+  namespace: sock-shop
+  labels:
+    name: carts-db
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    name: carts-db
+
+---
+# ============================================================
+# carts (Java)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carts
+  namespace: sock-shop
+  labels:
+    name: carts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: carts
+  template:
+    metadata:
+      labels:
+        name: carts
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: carts
+          image: 47.121.177.73:81/sock-shop-multiarch/carts:latest
+          env:
+            - name: JAVA_OPTS
+              value: >-
+                -Xms64m -Xmx128m
+                -XX:+UseG1GC
+                -Djava.security.egd=file:/dev/urandom
+                -Dspring.zipkin.enabled=false
+                -Dspring.autoconfigure.exclude=io.prometheus.client.spring.boot.PrometheusAutoConfiguration,io.prometheus.client.spring.boot.PrometheusEndpointAutoConfiguration
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 900
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 600
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: carts
+  namespace: sock-shop
+  labels:
+    name: carts
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    name: carts
+
+---
+# ============================================================
+# orders-db (MongoDB)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-db
+  namespace: sock-shop
+  labels:
+    name: orders-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: orders-db
+  template:
+    metadata:
+      labels:
+        name: orders-db
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: orders-db
+          image: 47.121.177.73:81/sock-shop-multiarch/orders-db:latest
+          ports:
+            - containerPort: 27017
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-db
+  namespace: sock-shop
+  labels:
+    name: orders-db
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    name: orders-db
+
+---
+# ============================================================
+# orders (Java)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  namespace: sock-shop
+  labels:
+    name: orders
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: orders
+  template:
+    metadata:
+      labels:
+        name: orders
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: orders
+          image: 47.121.177.73:81/sock-shop-multiarch/orders:latest
+          env:
+            - name: JAVA_OPTS
+              value: -Xms64m -Xmx128m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom -Dspring.zipkin.enabled=false
+            - name: RABBIT_HOST
+              value: rabbitmq
+            - name: RABBIT_PORT
+              value: "5672"
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 900
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 600
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders
+  namespace: sock-shop
+  labels:
+    name: orders
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    name: orders
+
+---
+# ============================================================
+# shipping (Java)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shipping
+  namespace: sock-shop
+  labels:
+    name: shipping
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: shipping
+  template:
+    metadata:
+      labels:
+        name: shipping
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: shipping
+          image: 47.121.177.73:81/sock-shop-multiarch/shipping:latest
+          env:
+            - name: JAVA_OPTS
+              value: -Xms64m -Xmx128m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom -Dspring.zipkin.enabled=false
+            - name: RABBIT_HOST
+              value: rabbitmq
+            - name: RABBIT_PORT
+              value: "5672"
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 900
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 600
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping
+  namespace: sock-shop
+  labels:
+    name: shipping
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    name: shipping
+
+---
+# ============================================================
+# rabbitmq
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: sock-shop
+  labels:
+    name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: rabbitmq
+  template:
+    metadata:
+      labels:
+        name: rabbitmq
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: rabbitmq
+          image: 47.121.177.73:81/sock-shop-multiarch/rabbitmq:latest
+          ports:
+            - containerPort: 5672
+            - containerPort: 15672
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
+                - DAC_OVERRIDE
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: sock-shop
+  labels:
+    name: rabbitmq
+spec:
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+  selector:
+    name: rabbitmq
+
+---
+# ============================================================
+# queue-master (Java)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queue-master
+  namespace: sock-shop
+  labels:
+    name: queue-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: queue-master
+  template:
+    metadata:
+      labels:
+        name: queue-master
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: queue-master
+          image: 47.121.177.73:81/sock-shop-multiarch/queue-master:latest
+          env:
+            - name: JAVA_OPTS
+              value: -Xms64m -Xmx128m -XX:+UseG1GC -Djava.security.egd=file:/dev/urandom -Dspring.zipkin.enabled=false
+            - name: RABBIT_HOST
+              value: rabbitmq
+            - name: RABBIT_PORT
+              value: "5672"
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 900
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 600
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: queue-master
+  namespace: sock-shop
+  labels:
+    name: queue-master
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    name: queue-master
+
+---
+# ============================================================
+# payment (Go)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: sock-shop
+  labels:
+    name: payment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: payment
+  template:
+    metadata:
+      labels:
+        name: payment
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: payment
+          image: 47.121.177.73:81/sock-shop-multiarch/payment:latest
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+              add:
+                - NET_BIND_SERVICE
+            readOnlyRootFilesystem: true
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment
+  namespace: sock-shop
+  labels:
+    name: payment
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    name: payment
+
+---
+# ============================================================
+# user-db (MongoDB)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-db
+  namespace: sock-shop
+  labels:
+    name: user-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: user-db
+  template:
+    metadata:
+      labels:
+        name: user-db
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: user-db
+          image: 47.121.177.73:81/sock-shop-multiarch/user-db:latest
+          ports:
+            - containerPort: 27017
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
+            readOnlyRootFilesystem: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-db
+  namespace: sock-shop
+  labels:
+    name: user-db
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    name: user-db
+
+---
+# ============================================================
+# user (Go)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user
+  namespace: sock-shop
+  labels:
+    name: user
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: user
+  template:
+    metadata:
+      labels:
+        name: user
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: user
+          image: 47.121.177.73:81/sock-shop-multiarch/user:latest
+          env:
+            - name: MONGO_HOST
+              value: user-db:27017
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+              add:
+                - NET_BIND_SERVICE
+            readOnlyRootFilesystem: true
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user
+  namespace: sock-shop
+  labels:
+    name: user
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+  selector:
+    name: user
+
+---
+# ============================================================
+# front-end (Node.js)
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: front-end
+  namespace: sock-shop
+  labels:
+    name: front-end
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: front-end
+  template:
+    metadata:
+      labels:
+        name: front-end
+    spec:
+      imagePullSecrets:
+        - name: harbor-secret
+      containers:
+        - name: front-end
+          image: 47.121.177.73:81/sock-shop-multiarch/front-end:latest
+          env:
+            - name: SESSION_REDIS
+              value: "true"
+          ports:
+            - containerPort: 8079
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8079
+            initialDelaySeconds: 300
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8079
+            initialDelaySeconds: 30
+            periodSeconds: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          securityContext:
+            capabilities:
+              drop:
+                - all
+            readOnlyRootFilesystem: false
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: front-end
+  namespace: sock-shop
+  labels:
+    name: front-end
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      targetPort: 8079
+      nodePort: 30001
+  selector:
+    name: front-end

@@ -1,11 +1,10 @@
-
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: emailservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: emailservice
@@ -30,7 +29,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/emailservice:v0.8.0
+        image: 47.121.177.73:81/hipster-multiarch/emailservice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:
@@ -72,7 +72,7 @@ kind: Deployment
 metadata:
   name: checkoutservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: checkoutservice
@@ -88,45 +88,46 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
       containers:
-        - name: server
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            privileged: false
-            readOnlyRootFilesystem: true
-          image: habor.production.horsecoder.com/hipster/checkoutservice:v0.8.0
-          ports:
-          - containerPort: 5050
-          readinessProbe:
-            tcpSocket:
-              port: 5050
-          livenessProbe:
-            tcpSocket:
-              port: 5050
-          env:
-          - name: PORT
-            value: "5050"
-          - name: PRODUCT_CATALOG_SERVICE_ADDR
-            value: "productcatalogservice:3550"
-          - name: SHIPPING_SERVICE_ADDR
-            value: "shippingservice:50051"
-          - name: PAYMENT_SERVICE_ADDR
-            value: "paymentservice:50051"
-          - name: EMAIL_SERVICE_ADDR
-            value: "emailservice:5000"
-          - name: CURRENCY_SERVICE_ADDR
-            value: "currencyservice:7000"
-          - name: CART_SERVICE_ADDR
-            value: "cartservice:7070"
-          resources:
-            limits:
-              cpu: 500m
-              memory: 950Mi
-            requests:
-              cpu: 150m
-              memory: 150Mi
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: 47.121.177.73:81/hipster-multiarch/checkoutservice:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5050
+        readinessProbe:
+          tcpSocket:
+            port: 5050
+        livenessProbe:
+          tcpSocket:
+            port: 5050
+        env:
+        - name: PORT
+          value: "5050"
+        - name: PRODUCT_CATALOG_SERVICE_ADDR
+          value: "productcatalogservice:3550"
+        - name: SHIPPING_SERVICE_ADDR
+          value: "shippingservice:50051"
+        - name: PAYMENT_SERVICE_ADDR
+          value: "paymentservice:50051"
+        - name: EMAIL_SERVICE_ADDR
+          value: "emailservice:5000"
+        - name: CURRENCY_SERVICE_ADDR
+          value: "currencyservice:7000"
+        - name: CART_SERVICE_ADDR
+          value: "cartservice:7070"
+        resources:
+          limits:
+            cpu: 500m
+            memory: 950Mi
+          requests:
+            cpu: 150m
+            memory: 150Mi
 ---
 apiVersion: v1
 kind: Service
@@ -146,7 +147,7 @@ kind: Deployment
 metadata:
   name: recommendationservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: recommendationservice
@@ -171,7 +172,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/recommendationservice:v0.8.0
+        image: 47.121.177.73:81/hipster-multiarch/recommendationservice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         readinessProbe:
@@ -215,7 +217,7 @@ kind: Deployment
 metadata:
   name: frontend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: frontend
@@ -233,67 +235,60 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
       containers:
-        - name: server
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            privileged: false
-            readOnlyRootFilesystem: true
-          image: habor.production.horsecoder.com/hipster/frontend:v0.8.0
-          ports:
-          - containerPort: 8080
-          readinessProbe:
-            initialDelaySeconds: 10
-            httpGet:
-              path: "/_healthz"
-              port: 8080
-              httpHeaders:
-              - name: "Cookie"
-                value: "shop_session-id=x-readiness-probe"
-          livenessProbe:
-            initialDelaySeconds: 10
-            httpGet:
-              path: "/_healthz"
-              port: 8080
-              httpHeaders:
-              - name: "Cookie"
-                value: "shop_session-id=x-liveness-probe"
-          env:
-          - name: PORT
-            value: "8080"
-          - name: PRODUCT_CATALOG_SERVICE_ADDR
-            value: "productcatalogservice:3550"
-          - name: CURRENCY_SERVICE_ADDR
-            value: "currencyservice:7000"
-          - name: CART_SERVICE_ADDR
-            value: "cartservice:7070"
-          - name: RECOMMENDATION_SERVICE_ADDR
-            value: "recommendationservice:8080"
-          - name: SHIPPING_SERVICE_ADDR
-            value: "shippingservice:50051"
-          - name: CHECKOUT_SERVICE_ADDR
-            value: "checkoutservice:5050"
-          - name: AD_SERVICE_ADDR
-            value: "adservice:9555"
-          # # ENV_PLATFORM: One of: local, gcp, aws, azure, onprem, alibaba
-          # # When not set, defaults to "local" unless running in GKE, otherwies auto-sets to gcp
-          # - name: ENV_PLATFORM
-          #   value: "aws"
-          - name: ENABLE_PROFILER
-            value: "0"
-          # - name: CYMBAL_BRANDING
-          #   value: "true"
-          # - name: FRONTEND_MESSAGE
-          #   value: "Replace this with a message you want to display on all pages."
-          resources:
-            limits:
-              cpu: 500m
-              memory: 950Mi
-            requests:
-              cpu: 200m
-              memory: 150Mi
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: 47.121.177.73:81/hipster-multiarch/frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          initialDelaySeconds: 10
+          httpGet:
+            path: "/_healthz"
+            port: 8080
+            httpHeaders:
+            - name: "Cookie"
+              value: "shop_session-id=x-readiness-probe"
+        livenessProbe:
+          initialDelaySeconds: 10
+          httpGet:
+            path: "/_healthz"
+            port: 8080
+            httpHeaders:
+            - name: "Cookie"
+              value: "shop_session-id=x-liveness-probe"
+        env:
+        - name: PORT
+          value: "8080"
+        - name: PRODUCT_CATALOG_SERVICE_ADDR
+          value: "productcatalogservice:3550"
+        - name: CURRENCY_SERVICE_ADDR
+          value: "currencyservice:7000"
+        - name: CART_SERVICE_ADDR
+          value: "cartservice:7070"
+        - name: RECOMMENDATION_SERVICE_ADDR
+          value: "recommendationservice:8080"
+        - name: SHIPPING_SERVICE_ADDR
+          value: "shippingservice:50051"
+        - name: CHECKOUT_SERVICE_ADDR
+          value: "checkoutservice:5050"
+        - name: AD_SERVICE_ADDR
+          value: "adservice:9555"
+        - name: ENABLE_PROFILER
+          value: "0"
+        resources:
+          limits:
+            cpu: 500m
+            memory: 950Mi
+          requests:
+            cpu: 200m
+            memory: 150Mi
 ---
 apiVersion: v1
 kind: Service
@@ -313,7 +308,7 @@ kind: Deployment
 metadata:
   name: paymentservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: paymentservice
@@ -338,7 +333,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/paymentservice:v0.8.0
+        image: 47.121.177.73:81/hipster-multiarch/paymentservice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 50051
         env:
@@ -378,7 +374,7 @@ kind: Deployment
 metadata:
   name: productcatalogservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: productcatalogservice
@@ -403,7 +399,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/productcatalogservice:v0.8.0
+        image: 47.121.177.73:81/hipster-multiarch/productcatalogservice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3550
         env:
@@ -443,7 +440,7 @@ kind: Deployment
 metadata:
   name: cartservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: cartservice
@@ -467,8 +464,9 @@ spec:
             drop:
               - ALL
           privileged: false
-          readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/cartservice:v0.8.0
+          readOnlyRootFilesystem: false
+        image: 47.121.177.73:81/hipster-multiarch/cartservice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 7070
         env:
@@ -509,7 +507,7 @@ kind: Deployment
 metadata:
   name: currencyservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: currencyservice
@@ -534,7 +532,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/currencyservice:v0.8.0
+        image: 47.121.177.73:81/hipster-multiarch/currencyservice:latest
+        imagePullPolicy: Always
         ports:
         - name: grpc
           containerPort: 7000
@@ -575,7 +574,7 @@ kind: Deployment
 metadata:
   name: shippingservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: shippingservice
@@ -599,7 +598,8 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/shippingservice:v0.8.0
+        image: 47.121.177.73:81/hipster-multiarch/shippingservice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 50051
         env:
@@ -640,7 +640,7 @@ kind: Deployment
 metadata:
   name: redis-cart
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: redis-cart
@@ -706,7 +706,7 @@ kind: Deployment
 metadata:
   name: adservice
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: adservice
@@ -730,8 +730,9 @@ spec:
             drop:
               - ALL
           privileged: false
-          readOnlyRootFilesystem: true
-        image: habor.production.horsecoder.com/hipster/adservice:v0.8.0
+          readOnlyRootFilesystem: false
+        image: 47.121.177.73:81/hipster-multiarch/adservice:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 9555
         env:
@@ -767,4 +768,3 @@ spec:
   - name: grpc
     port: 9555
     targetPort: 9555
-# [END gke_release_kubernetes_manifests_microservices_demo]
