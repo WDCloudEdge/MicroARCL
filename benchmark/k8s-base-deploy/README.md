@@ -144,9 +144,13 @@ data collector can query them from outside the cluster:
 
 | Service | NodePort | Used by |
 | --- | ---: | --- |
-| `prometheus-k8s` | 30200 | node, pod, and service metrics |
-| `prometheus-k8s` (Istio) | 30202 | Istio mesh metrics |
-| `grafana` | 30100 | dashboards |
+| `prometheus-k8s` (namespace `monitoring`) | 30200 | node, pod, and service metrics |
+| `prometheus` (namespace `istio-system`) | 30202 | Istio mesh metrics |
+| `grafana` (namespace `monitoring`) | 30100 | dashboards |
+
+NodePort 30200 and 30100 are set by `prometheus/prometheus-service.yaml` and
+`prometheus/grafana-service.yaml`. Port 30202 is served by the Istio addon Prometheus,
+which is installed separately from the Istio release and is not part of this directory.
 
 Prometheus and Grafana addresses are configured in `benchmark/data-collector/Config.py`.
 
