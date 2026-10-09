@@ -1,6 +1,6 @@
 ##Prometheus
-kubectl apply -f ./deploy/prometheus/setup
-kubectl apply -f ./deploy/prometheus
+kubectl apply -f ./k8s-base-deploy/prometheus/setup
+kubectl apply -f ./k8s-base-deploy/prometheus
 
 ##Chaos-mesh
 helm repo add chaos-mesh https://charts.chaos-mesh.org
