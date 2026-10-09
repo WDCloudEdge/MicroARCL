@@ -21,9 +21,9 @@ monitoring stack that the data collector reads from.
 | Harbor | 2.4.2 | Image registry, listens on port 81 |
 | tcpdump | 4.9.2 | Host package |
 
-Kuboard, Nacos, and MinIO are **not** part of the cluster. They run as standalone
-processes on a single host and are reached through the hostnames
-`minio.agent.network.com` and `center.agent.network.com`.
+Kuboard, Nacos, and MinIO run as standalone processes on a single host rather than inside
+the cluster, and are reached through the hostnames `minio.agent.network.com` and
+`center.agent.network.com`.
 
 ## Layout
 
@@ -37,7 +37,7 @@ train-ticket/      TrainTicket: 46 Deployments
 prometheus/        kube-prometheus: operator, Prometheus, Alertmanager,
                    Grafana, kube-state-metrics, node-exporter,
                    blackbox-exporter, prometheus-adapter
-istio-1.13.4/      Legacy Istio 1.13.4 install manifests and gateway configs
+istio-1.13.4/      Istio install manifests and gateway configs
 ```
 
 `prometheus/setup/` holds the CustomResourceDefinitions and must be applied before the
@@ -45,8 +45,8 @@ rest of the monitoring stack.
 
 ## Prerequisites
 
-1. **Image registry reachable from every node.** All workload images are served from a
-   local Harbor instance so that the cluster does not depend on public registries:
+1. **Image registry reachable from every node.** Workload images are served from a local
+   Harbor instance:
 
    ```bash
    # /etc/docker/daemon.json on each node
@@ -80,7 +80,7 @@ keeps the cluster independent of the cloud server that terminates the tunnel.
 kubeadm init --config kube-init.yaml --ignore-preflight-errors=all
 ```
 
-Flannel must be bound to the tunnel interface, otherwise pod traffic bypasses it:
+Flannel is bound to the tunnel interface, otherwise pod traffic bypasses it:
 
 ```bash
 kubectl apply -f kube-flannel.yml      # built with -iface=wg1
