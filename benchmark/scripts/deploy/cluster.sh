@@ -6,15 +6,6 @@ sudo kubeadm init --pod-network-cidr=10.244.0.0/16
                   --image-repository registry.aliyuncs.com/google_containers
                   --kubernetes-version=v1.22.16
 
-##OpenYurt
-helm repo add openyurt https://openyurtio.github.io/openyurt-helm
-
-helm upgrade --install yurt-manager -n kube-system openyurt/yurt-manager
-
-helm upgrade --install yurt-hub -n kube-system --set kubernetesServerAddr=https://1.2.3.4:6443 openyurt/yurthub
-
-helm upgrade --install raven-agent -n kube-system openyurt/raven-agent
-
 #ETCD
 cd etcd-v3.4.13-linux-amd64
 

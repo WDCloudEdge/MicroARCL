@@ -62,7 +62,7 @@ def get_pod(config, namespace):
 
 
 if __name__ == '__main__':
-    namespaces = ['bookinfo', 'hipster', 'cloud-sock-shop', 'horsecoder-test']
+    namespaces = ['bookinfo', 'hipster']
     config = Config()
     data_folder = sys.argv[1]
     condition = sys.argv[2]
