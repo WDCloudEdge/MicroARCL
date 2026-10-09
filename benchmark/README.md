@@ -9,8 +9,8 @@ The base environment is documented separately.
 
 | Path | Purpose |
 | --- | --- |
-| `k8s-base-deploy/` | Kubernetes manifests for the base environment |
-| `scheduler/` | Base framework for multi-agent services |
+| `k8s-base-deploy/` | Kubernetes manifests for the base environment. See [its README](k8s-base-deploy/README.md) |
+| `scheduler/` | Base framework for multi-agent services. See [its README](scheduler/README.md) |
 | `data-collector/` | Collects metrics, logs, and execution graphs |
 | `failure_injection/` | Agent-service deployments and failure-injection entry points |
 | `scripts/` | Cluster, monitoring, and service deployment, plus fault injection cases |
@@ -25,7 +25,8 @@ make service-deploy    # the four conventional microservice systems
 ```
 
 Both targets call the scripts under `scripts/deploy/`, which apply the manifests in
-`k8s-base-deploy/`. See `k8s-base-deploy/README.md` for details.
+`k8s-base-deploy/`. See [k8s-base-deploy/README.md](k8s-base-deploy/README.md) for
+prerequisites and component versions.
 
 ## Workloads and failures
 
