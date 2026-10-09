@@ -1,80 +1,153 @@
-# HybridCloud
-## Description
+# Kubernetes Base Environment
 
-The project contains the configuration files of a benchmark of hybrid-deployed microservice systems in a cloud-edge collaborative environment.
+Deployment manifests for the microservice benchmark used by MicroARCL. The cluster hosts
+four conventional microservice systems that the agent services run alongside, plus the
+monitoring stack that the data collector reads from.
 
-The versions of the components in the cluster are as follows:
+## Components
 
-| Component | Version | 
-|-------|-------|
-| Kubernetes | v1.22.16 |
-| Kuboard | v3.3.0 |
-|Istio |v1.13.4|
-|Jaeger |v1.52|
-|Elasticsearch | v8.11.3|
-|Tcpdump | v4.9.2|
-|Nacos| v2.2.1|
-|Etcd |v3.4.13|
+| Component | Version | Deployment |
+|-------|-------|-------|
+| Kubernetes | v1.19.16 | kubeadm, `kube-init.yaml` |
+| Flannel | — | VXLAN over the `wg1` tunnel interface |
+| Istio | 1.15.1 | `istioctl install` |
+| Prometheus | kube-prometheus 0.7.0 | `prometheus/` (NodePort 30200) |
+| Prometheus (Istio metrics) | — | NodePort 30202 |
+| Grafana | — | `prometheus/` (NodePort 30100) |
+| Chaos Mesh | 2.3.3 | Helm, dashboard on NodePort 31439 |
+| Elasticsearch | 8.11.4 | Host process, stores Jaeger spans |
+| Kibana | 8.11.4 | Container |
+| Jaeger | 1.52 | Container, all-in-one |
+| Harbor | 2.4.2 | Image registry, listens on port 81 |
+| tcpdump | 4.9.2 | Host package |
 
-## Architecture Graph
-![architecture](image/1.png)
-## Quick Start
-### Presequisite
+Kuboard, Nacos, and MinIO are **not** part of the cluster. They run as standalone
+processes on a single host and are reached through the hostnames
+`minio.agent.network.com` and `center.agent.network.com`.
 
-* Helm supported, you can see https://helm.sh/docs/helm/helm_install/ for helm install
-* PVC supported, you can see https://openebs.io/docs/2.12.x/user-guides/installation for localPV support.
+## Layout
 
-### 1. Build a Kubernetes Cluster
-We can use *kubeadm* to quickly initialise a cluster.
-```shell
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16
-                  --apiserver-advertise-address=[Master Node IP]
-                  --upload-certs
-                  --apiserver-cert-extra-sans=[Master Node IP]
-                  --service-cidr=10.96.0.0/12
-                  --image-repository registry.aliyuncs.com/google_containers
-                  --kubernetes-version=v1.22.16
 ```
-In order to add edge nodes to the cluster, we need to deploy the *OpenYurt* component.
-```shell
-helm repo add openyurt https://openyurtio.github.io/openyurt-helm
-
-helm upgrade --install yurt-manager -n kube-system openyurt/yurt-manager
-
-helm upgrade --install yurt-hub -n kube-system --set kubernetesServerAddr=https://1.2.3.4:6443 openyurt/yurthub
-
-helm upgrade --install raven-agent -n kube-system openyurt/raven-agent
+bookinfo/          Bookinfo: 6 Deployments + 4 Services
+  bookinfo.yaml               default topology
+  bookinfo-experiment.yaml    reviews-v1 and reviews-v3 scaled to 0
+hipster/           Hipster Shop: 11 Deployments + 11 Services
+sock-shop/         Sock Shop: 14 Deployments + 14 Services
+train-ticket/      TrainTicket: 46 Deployments
+prometheus/        kube-prometheus: operator, Prometheus, Alertmanager,
+                   Grafana, kube-state-metrics, node-exporter,
+                   blackbox-exporter, prometheus-adapter
+istio-1.13.4/      Legacy Istio 1.13.4 install manifests and gateway configs
 ```
-It is also acceptable to choose your own deployment plan based on the [OpenYurt document](https://openyurt.io/docs/installation).
-### 2. Deploy Monitor Tools
+
+`prometheus/setup/` holds the CustomResourceDefinitions and must be applied before the
+rest of the monitoring stack.
+
+## Prerequisites
+
+1. **Image registry reachable from every node.** All workload images are served from a
+   local Harbor instance so that the cluster does not depend on public registries:
+
+   ```bash
+   # /etc/docker/daemon.json on each node
+   {
+     "exec-opts": ["native.cgroupdriver=systemd"],
+     "insecure-registries": ["<REGISTRY_HOST>:81"]
+   }
+   ```
+
+   ```bash
+   kubectl create secret docker-registry private-registry-secret \
+     --docker-server=<REGISTRY_HOST>:81 \
+     --docker-username=<REGISTRY_USER> \
+     --docker-password=<REGISTRY_PASSWORD> \
+     -n <namespace>
+   ```
+
+   The Sock Shop manifest references this secret through `imagePullSecrets`.
+
+2. **Helm**, for Chaos Mesh: <https://helm.sh/docs/helm/helm_install/>
+
+3. **`kubectl` access to the cluster**, via `~/.kube/config`.
+
+## 1. Build the cluster
+
+The nodes reach each other over a WireGuard tunnel (`wg1`), each holding a virtual IP in
+`30.0.0.0/24`; physical neighbours are kept on the local link with per-node routes. This
+keeps the cluster independent of the cloud server that terminates the tunnel.
 
 ```bash
+kubeadm init --config kube-init.yaml --ignore-preflight-errors=all
+```
+
+Flannel must be bound to the tunnel interface, otherwise pod traffic bypasses it:
+
+```bash
+kubectl apply -f kube-flannel.yml      # built with -iface=wg1
+```
+
+When cross-subnet nodes cannot reach the API server through the tunnel, a MASQUERADE rule
+is required on each of them:
+
+```bash
+sudo iptables -t nat -A POSTROUTING -d <MASTER_VIP>/32 -p tcp --dport 6443 -o wg1 -j MASQUERADE
+```
+
+## 2. Deploy the monitoring stack
+
+```bash
+cd benchmark
 make monitor-deploy
 ```
-Note: 
-* If you want to use Istio, you can follow the [Istio document](https://istio.io/latest/docs/setup/install/).
-* If you want to load test the microservice systems in the cluster, we recommend Locust as a load generation tool. You can follow the [Locust document](https://docs.locust.io/en/stable/installation.html) or [Data Operation](#Data-Operation) for further details.
-### 3. Deploy Microservice Systems
+
+This applies `prometheus/setup` followed by `prometheus/`, installs Chaos Mesh 2.3.3, and
+installs tcpdump on the host. Prometheus and Grafana are exposed as NodePorts so that the
+data collector can query them from outside the cluster:
+
+| Service | NodePort | Used by |
+| --- | ---: | --- |
+| `prometheus-k8s` | 30200 | node, pod, and service metrics |
+| `prometheus-k8s` (Istio) | 30202 | Istio mesh metrics |
+| `grafana` | 30100 | dashboards |
+
+Prometheus and Grafana addresses are configured in `benchmark/data-collector/Config.py`.
+
+## 3. Deploy the microservice systems
+
 ```bash
+cd benchmark
 make service-deploy
 ```
-Note:
-* If you want to use Nacos, you can follow the [Nacos document](https://nacos.io/docs/latest/quickstart/quick-start/).
-* If you want to use Minio, you can follow the [Minio document](https://min.io/docs/minio/kubernetes/upstream/index.html).
-## Data Operation
-The data operation of this cluster consists of three parts, which you can see in detail in the following links:
-* [Fault injection](https://github.com/WDCloudEdge/Failure-injection.git) :By using choas-mesh, we simulated various types of failures in the cluster, including CPU, memory, network and container failures.
-* [Load Generation](https://github.com/WDCloudEdge/load-generator.git): In order to simulate access to microservice systems by different numbers of users, we used Locust to generate loads.
-* [Data Collection](https://github.com/WDCloudEdge/data-collector.git): With the help of monitoring tools, we collect metrics data on multiple dimensions for each microservice system.
 
-## Instruction 
-In order to ensure that clusters work better, we have made adjustments in the following three parts:
-### 1. ELK
-For better persistence, we chose to store the data collected by Jaeger in [Elasticsearch](https://www.elastic.co/cn/elasticsearch) and [Kibana](https://www.elastic.co/cn/kibana)
-### 2. Etcd Cluster
-The default etcd in Kubernetes has limited carrying capacity, and we chose to upgrade it to cluster mode: [Etcd Cluster](https://etcd.io/docs/v3.5/op-guide/clustering/)
-### 3. Nfs
-Across the cluster, we use nfs as the default presentation layer protocol.
+Each system is applied into its own namespace (`bookinfo`, `hipster`, `sock-shop`,
+`train-ticket`). Istio sidecar injection is enabled per namespace:
+
+```bash
+kubectl label namespace bookinfo istio-injection=enabled
+```
+
+For Istio, install the control plane and point tracing at Jaeger:
+
+```bash
+istioctl install \
+  --set meshConfig.defaultConfig.tracing.zipkin.address=<JAEGER_HOST>:9411 \
+  --set meshConfig.defaultConfig.tracing.sampling=100
+```
+
+## Data operation
+
+Load generation, fault injection, and metric collection are driven from
+`benchmark/scripts` and `benchmark/failure_injection`; see the repository root README for
+the run order. Failures are injected with Chaos Mesh (CPU, memory, network delay, pod
+failure, pod deletion) and metrics, logs, and execution graphs are collected through
+`benchmark/data-collector`.
 
 ## License
-This project is licensed under the Apache 2.0 License - see the [LICENSE](https://github.com/WDCloudEdge/HybridCloudConfig/LICENSE) file for details. Certain images in HybridCloud rely on the existing code from [Sock Shop](https://github.com/microservices-demo/microservices-demo.git) ,[Hipster](https://github.com/WDCloudEdge/Augmented-OnlineBoutique.git) ,[Train Tickets](https://github.com/WDCloudEdge/train-ticket.git). The credits go to the original authors
+
+This directory is covered by the [Apache License 2.0](../LICENSE). The microservice
+systems are third-party projects and credit goes to their original authors:
+
+- [Sock Shop](https://github.com/microservices-demo/microservices-demo)
+- [Hipster Shop / Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo)
+- [TrainTicket](https://github.com/FudanSELab/train-ticket)
+- [Bookinfo](https://github.com/istio/istio/tree/master/samples/bookinfo)

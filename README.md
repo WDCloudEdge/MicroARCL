@@ -19,7 +19,9 @@ MicroASBench combines deployable agent services, configurable workloads and repl
 
 ### Kubernetes base environment setup
 
-`benchmark/k8s-base-deploy` contains 81 traditional microservices deployed together, including Bookinfo, SockShop, Online Boutique, and TrainTicket, along with infrastructure for service management and monitoring, such as Istio, Prometheus, and Jaeger.
+`benchmark/k8s-base-deploy` contains the deployment manifests for the base environment: 81 traditional microservices deployed together, including Bookinfo, SockShop, Online Boutique, and TrainTicket, along with infrastructure for service management and monitoring, such as Istio and Prometheus.
+
+See [benchmark/k8s-base-deploy/README.md](benchmark/k8s-base-deploy/README.md) for the component versions, prerequisites, and the cluster, monitoring, and service deployment steps.
 
 ### Build and run the multi-agent service scheduling and execution framework image
 

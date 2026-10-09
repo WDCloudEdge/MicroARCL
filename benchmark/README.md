@@ -1,80 +1,50 @@
-# HybridCloud
-## Description
+# MicroASBench benchmark
 
-The project contains the configuration files of a benchmark of hybrid-deployed microservice systems in a cloud-edge collaborative environment.
+Deployable environments, workloads, and failure injection used to evaluate MicroARCL.
+The base environment is documented separately.
 
-The versions of the components in the cluster are as follows:
-
-| Component | Version | 
-|-------|-------|
-| Kubernetes | v1.22.16 |
-| Kuboard | v3.3.0 |
-|Istio |v1.13.4|
-|Jaeger |v1.52|
-|Elasticsearch | v8.11.3|
-|Tcpdump | v4.9.2|
-|Nacos| v2.2.1|
-|Etcd |v3.4.13|
-
-## Architecture Graph
 ![architecture](image/1.png)
-## Quick Start
-### Presequisite
 
-* Helm supported, you can see https://helm.sh/docs/helm/helm_install/ for helm install
-* PVC supported, you can see https://openebs.io/docs/2.12.x/user-guides/installation for localPV support.
+## Layout
 
-### 1. Build a Kubernetes Cluster
-We can use *kubeadm* to quickly initialise a cluster.
-```shell
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16
-                  --apiserver-advertise-address=[Master Node IP]
-                  --upload-certs
-                  --apiserver-cert-extra-sans=[Master Node IP]
-                  --service-cidr=10.96.0.0/12
-                  --image-repository registry.aliyuncs.com/google_containers
-                  --kubernetes-version=v1.22.16
-```
-In order to add edge nodes to the cluster, we need to deploy the *OpenYurt* component.
-```shell
-helm repo add openyurt https://openyurtio.github.io/openyurt-helm
+| Path | Purpose |
+| --- | --- |
+| `k8s-base-deploy/` | Kubernetes manifests for the base environment. See [its README](k8s-base-deploy/README.md) |
+| `scheduler/` | Base framework for multi-agent services. See [its README](scheduler/README.md) |
+| `data-collector/` | Collects metrics, logs, and execution graphs |
+| `failure_injection/` | Agent-service deployments and failure-injection entry points |
+| `scripts/` | Cluster, monitoring, and service deployment, plus fault injection cases |
 
-helm upgrade --install yurt-manager -n kube-system openyurt/yurt-manager
+## Deployment
 
-helm upgrade --install yurt-hub -n kube-system --set kubernetesServerAddr=https://1.2.3.4:6443 openyurt/yurthub
-
-helm upgrade --install raven-agent -n kube-system openyurt/raven-agent
-```
-It is also acceptable to choose your own deployment plan based on the [OpenYurt document](https://openyurt.io/docs/installation).
-### 2. Deploy Monitor Tools
+Run from this directory:
 
 ```bash
-make monitor-deploy
+make monitor-deploy    # monitoring stack, Chaos Mesh, tcpdump
+make service-deploy    # the four conventional microservice systems
 ```
-Note: 
-* If you want to use Istio, you can follow the [Istio document](https://istio.io/latest/docs/setup/install/).
-* If you want to load test the microservice systems in the cluster, we recommend Locust as a load generation tool. You can follow the [Locust document](https://docs.locust.io/en/stable/installation.html) or [Data Operation](#Data-Operation) for further details.
-### 3. Deploy Microservice Systems
-```bash
-make service-deploy
-```
-Note:
-* If you want to use Nacos, you can follow the [Nacos document](https://nacos.io/docs/latest/quickstart/quick-start/).
-* If you want to use Minio, you can follow the [Minio document](https://min.io/docs/minio/kubernetes/upstream/index.html).
-## Data Operation
-The data operation of this cluster consists of three parts, which you can see in detail in the following links:
-* [Fault injection](https://github.com/WDCloudEdge/Failure-injection.git) :By using choas-mesh, we simulated various types of failures in the cluster, including CPU, memory, network and container failures.
-* [Load Generation](https://github.com/WDCloudEdge/load-generator.git): In order to simulate access to microservice systems by different numbers of users, we used Locust to generate loads.
-* [Data Collection](https://github.com/WDCloudEdge/data-collector.git): With the help of monitoring tools, we collect metrics data on multiple dimensions for each microservice system.
 
-## Instruction 
-In order to ensure that clusters work better, we have made adjustments in the following three parts:
-### 1. ELK
-For better persistence, we chose to store the data collected by Jaeger in [Elasticsearch](https://www.elastic.co/cn/elasticsearch) and [Kibana](https://www.elastic.co/cn/kibana)
-### 2. Etcd Cluster
-The default etcd in Kubernetes has limited carrying capacity, and we chose to upgrade it to cluster mode: [Etcd Cluster](https://etcd.io/docs/v3.5/op-guide/clustering/)
-### 3. Nfs
-Across the cluster, we use nfs as the default presentation layer protocol.
+Both targets call the scripts under `scripts/deploy/`, which apply the manifests in
+`k8s-base-deploy/`. See [k8s-base-deploy/README.md](k8s-base-deploy/README.md) for
+prerequisites and component versions.
+
+## Workloads and failures
+
+Agent services are deployed from `failure_injection/`:
+
+```text
+MDOC:  failure_injection/failure_injection_MDOC/run_all_services.sh
+MAR:   failure_injection/failure_injection_MARBLEbench/run_all_services.sh
+Single-service failures:
+       failure_injection/failure_injection_{DATASET}/sum_chaos_cloud_{service}.sh
+```
+
+These scripts start the agent-service cluster, inject workload with Locust and failures
+with Chaos Mesh, and collect metrics, logs, and execution graphs through
+`data-collector/`. Collected data is stored in `data/` in the same format as the
+published datasets.
 
 ## License
-This project is licensed under the Apache 2.0 License - see the [LICENSE](https://github.com/WDCloudEdge/HybridCloudConfig/LICENSE) file for details. Certain images in HybridCloud rely on the existing code from [Sock Shop](https://github.com/microservices-demo/microservices-demo.git) ,[Hipster](https://github.com/WDCloudEdge/Augmented-OnlineBoutique.git) ,[Train Tickets](https://github.com/WDCloudEdge/train-ticket.git). The credits go to the original authors
+
+This subtree is covered by the [Apache License 2.0](LICENSE). The bundled microservice
+systems are third-party projects; credit goes to their original authors.
