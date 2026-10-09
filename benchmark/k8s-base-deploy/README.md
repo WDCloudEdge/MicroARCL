@@ -88,7 +88,8 @@ sudo timedatectl set-timezone Asia/Shanghai
 ```
 
 Initialise the control plane from `cluster/kube-init.yaml`, which pins the Kubernetes
-version, the pod and service subnets, and IPVS proxy mode:
+version, the pod subnet `10.244.0.0/16`, the service subnet `10.96.0.0/12`, and IPVS
+proxy mode:
 
 ```bash
 kubeadm init --config cluster/kube-init.yaml --ignore-preflight-errors=all
@@ -177,8 +178,8 @@ cd istio-1.15.1
 export PATH=$PWD/bin:$PATH
 ```
 
-Install the control plane with tracing enabled; `istio/tracing.yaml` carries the same
-settings:
+Install the control plane with tracing enabled. `istio/tracing.yaml` sends spans to
+Jaeger on port `9411` at full sampling, so `istioctl` reads the same settings:
 
 ```bash
 istioctl install -f istio/tracing.yaml
