@@ -42,3 +42,4 @@ tmp
 volume
 benchmark/scheduler_bf
 benchmark/data
+benchmark/data-collector/config.yaml
