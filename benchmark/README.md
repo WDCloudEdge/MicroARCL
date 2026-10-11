@@ -3,7 +3,7 @@
 Deployable environments, workloads, and failure injection used to evaluate MicroARCL.
 The base environment is documented separately.
 
-![architecture](image/1.png)
+![architecture](image/1-agent-services.png)
 
 ## Layout
 
@@ -30,18 +30,20 @@ prerequisites and component versions.
 
 ## Workloads and failures
 
+Place the Kubernetes configuration file (config.yaml) at benchmark/data-collector/config.yaml.
+
 Agent services are deployed from `failure_injection/`:
 
 ```text
-MDOC:  failure_injection/failure_injection_MDOC/run_all_services.sh
-MAR:   failure_injection/failure_injection_MARBLEbench/run_all_services.sh
+MDOC:  HOST_IP=192.168.xx.xx failure_injection/failure_injection_MDOC/run_all_services.sh
+MAR:   HOST_IP=192.168.xx.xx failure_injection/failure_injection_MARBLEbench/run_all_services.sh
 Single-service failures:
-       failure_injection/failure_injection_{DATASET}/sum_chaos_cloud_{service}.sh
+       HOST_IP=192.168.xx.xx failure_injection/failure_injection_{DATASET}/sum_chaos_cloud_{service}.sh
 ```
 
 These scripts start the agent-service cluster, inject workload with Locust and failures
 with Chaos Mesh, and collect metrics, logs, and execution graphs through
-`data-collector/`. Collected data is stored in `data/` in the same format as the
+`benchmark/data-collector/`. Collected data is stored in `benchmark/data/` in the same format as the
 published datasets.
 
 ## License
