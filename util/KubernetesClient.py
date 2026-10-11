@@ -45,7 +45,7 @@ class KubernetesClient:
             field_selector = f"spec.nodeName={node.node_name},metadata.namespace={namespace}"
             pods.append(self.core_api.list_pod_for_all_namespaces(field_selector=field_selector))
 
-        # 打印 Pod 信息
+        # Print Pod info
         for pod_item in pods:
             for pod in pod_item.items:
                 converted_pods.append(

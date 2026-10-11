@@ -1,3 +1,4 @@
+import os
 import time
 
 class Config:
@@ -7,7 +8,7 @@ class Config:
         self.svcs = set()
         self.pods = set()
 
-        self.interval = 20 * 60  # 每次收集数据的时间（5min）
+        self.interval = 20 * 60  # interval between data collections (5 min)
         # duration related to interval
         self.duration = self.interval
         # self.start = int(round((time.time() - self.duration)))
@@ -16,9 +17,9 @@ class Config:
         self.start = self.end - self.duration
 
         # prometheus
-        # self.prom_range_url = "http://192.168.31.227:30210/api/v1/query_range"  # istio支持
-        self.prom_range_url = "http://192.168.31.227:30202/api/v1/query_range"  # istio支持
-        self.prom_range_url_node = "http://192.168.31.227:30200/api/v1/query_range"  # 原生Prometheus
+        # self.prom_range_url = "http://192.168.31.227:30210/api/v1/query_range"  # istio support
+        self.prom_range_url = "http://192.168.31.227:30202/api/v1/query_range"  # istio support
+        self.prom_range_url_node = "http://192.168.31.227:30200/api/v1/query_range"  # native Prometheus
         self.prom_no_range_url_node = "http://192.168.31.227:30200/api/v1/query"
         # self.prom_no_range_url = "http://192.168.31.227:30210/api/v1/query"
         self.prom_no_range_url = "http://192.168.31.227:30200/api/v1/query"
@@ -33,7 +34,9 @@ class Config:
         self.kiali_url = 'http://47.99.200.176:32001/kiali/api'
 
         # kubernetes
-        self.k8s_config = 'config.yaml'  # kubernetes配置文件地址
+        # kubernetes config file path; anchored to this file's directory so it
+        # resolves no matter which working directory the collector is run from.
+        self.k8s_config = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml')
 
         self.user = ''
 

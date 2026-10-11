@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 def timestamp_to_rfc3339(timestamp):
     """
-    Unix timestamp -> Kubernetes RFC3339 UTC时间
+    Convert a Unix timestamp to Kubernetes RFC3339 UTC time.
     """
     dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -92,7 +92,7 @@ def collect_logs(
                             continue
 
                         try:
-                            # Kubernetes timestamps=True 后：
+                            # Kubernetes timestamps=True prefixes each log line with a timestamp:
                             #
                             # 2026-09-04T06:20:31.123456789Z log content
                             #
@@ -101,11 +101,11 @@ def collect_logs(
                             if timestamp_str.endswith("Z"):
                                 timestamp_str = timestamp_str[:-1] + "+00:00"
 
-                            # 截断纳秒到微秒
+                            # datetime.fromisoformat accepts at most microsecond precision.
                             if "." in timestamp_str:
                                 main_part, fraction = timestamp_str.split(".", 1)
 
-                                # fraction 可能是：
+                                # The fractional part may include a timezone offset:
                                 # 012475323+00:00
                                 fraction = fraction[:6]
 
@@ -114,17 +114,16 @@ def collect_logs(
                             log_dt = datetime.fromisoformat(timestamp_str)
                             log_timestamp = log_dt.timestamp()
 
-                            # 超过结束时间
+                            # Stop once the requested window ends.
                             if log_timestamp > end_timestamp:
                                 break
 
-                            # 理论上不会出现，因为 since_seconds
-                            # 已经限制了开始时间，但再检查一次更安全
+                            # since_seconds is approximate, so enforce the start bound here too.
                             if log_timestamp < start_timestamp:
                                 continue
 
                         except (ValueError, IndexError):
-                            # 无法解析 timestamp
+                            # Skip lines without a parseable timestamp.
                             continue
 
                         f.write(line + "\n")
@@ -139,14 +138,14 @@ def collect_logs(
 
 def safe_filename(name):
     """
-    防止 Pod/Container 名称中出现特殊字符
+    Replace characters unsafe for Pod or container filenames.
     """
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="收集 Kubernetes namespace 下所有 Pod 指定时间范围内的日志"
+        description="Collect logs from all pods in a Kubernetes namespace for a time range"
     )
 
     parser.add_argument(
@@ -159,26 +158,26 @@ def main():
     parser.add_argument(
         "--start",
         required=True,
-        help="开始时间，例如: 2026-09-04 10:00:00"
+        help="Start time, for example: 2026-09-04 10:00:00"
     )
 
     parser.add_argument(
         "--end",
         required=True,
-        help="结束时间，例如: 2026-09-04 11:00:00"
+        help="End time, for example: 2026-09-04 11:00:00"
     )
 
     parser.add_argument(
         "--output",
         "-o",
         default="./k8s_logs",
-        help="日志输出目录，默认 ./k8s_logs"
+        help="Log output directory (default: ./k8s_logs)"
     )
 
     parser.add_argument(
         "--previous",
         action="store_true",
-        help="同时收集 previous container 日志"
+        help="Also collect logs from previous containers"
     )
 
     args = parser.parse_args()
@@ -188,7 +187,7 @@ def main():
 
     if end_time <= start_time:
         raise ValueError(
-            "结束时间必须大于开始时间"
+            "End time must be later than start time"
         )
 
     collect_logs(

@@ -5,18 +5,18 @@ import pandas as pd
 import os
 
 '''
-    指标收集
+    Metric collection
 '''
 
 
 def collect(config: Config, fault_type, number):
-    # 收集调用关系
+    # Collect call relations
     call_df = get_call(config)
-    # 收集调用与延时
+    # Collect calls and latency
     latency_df = get_latency(config)
-    # 收集ctn CPU, memory, network
+    # Collect container CPU, memory, network
     ctn_metric_df = ctn_metric(config)
-    # 收集节点CPU, memory, network
+    # Collect node CPU, memory, network
     node_metric_df = node_metric(config)
 
     metric_df = pd.concat([ctn_metric_df, node_metric_df], axis=1)
@@ -40,7 +40,7 @@ def collect(config: Config, fault_type, number):
     metric_df.to_csv(dir + 'metric.csv')
 
 
-# 收集调用关系
+# Collect call relations
 def get_call(config: Config):
     call_df = pd.DataFrame(columns=['source', 'destination'])
 
@@ -71,10 +71,10 @@ def get_call(config: Config):
     return call_df
 
 
-# 收集调用和延时
+# Collect calls and latency
 def get_latency(config: Config):
     latency_df = pd.DataFrame()
-    # 获取 P50，P90，P99 延时
+    # Get P50, P90, P99 latency
     prom_50_sql = 'histogram_quantile(0.50, sum(irate(istio_request_duration_milliseconds_bucket{reporter=\"destination\", destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, source_workload, le))' % config.namespace
     prom_90_sql = 'histogram_quantile(0.90, sum(irate(istio_request_duration_milliseconds_bucket{reporter=\"destination\", destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, source_workload, le))' % config.namespace
     prom_99_sql = 'histogram_quantile(0.99, sum(irate(istio_request_duration_milliseconds_bucket{reporter=\"destination\", destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, source_workload, le))' % config.namespace
@@ -102,7 +102,7 @@ def get_latency(config: Config):
     return latency_df
 
 
-# 收集容器CPU, memory, network
+# Collect container CPU, memory, network
 def ctn_metric(config: Config):
     df = pd.DataFrame()
     prom_cpu_sql = 'sum(rate(container_cpu_usage_seconds_total{namespace=\'%s\',container!~\'POD|istio-proxy|\',pod!~\'jaeger.*\'}[1m])* 1000)  by (pod, instance,container)' % config.namespace
@@ -146,7 +146,7 @@ def ctn_metric(config: Config):
     return df
 
 
-# 收集节点指标
+# Collect node metrics
 def node_metric(config: Config):
     df = pd.DataFrame()
     for node in config.nodes.values():
@@ -182,7 +182,7 @@ def node_metric(config: Config):
     return df
 
 
-# 执行prom_sql查询
+# Execute the prom_sql query
 def executeProm(config: Config, prom_sql):
     response = requests.get(config.prom_range_url,
                             params={'query': prom_sql,

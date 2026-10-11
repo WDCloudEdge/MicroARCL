@@ -26,7 +26,7 @@ class DataProcessor:
 
         
     def reorder_columns(self):
-        feature_columns = self.df.columns[1:]  # 除去timestamp列
+        feature_columns = self.df.columns[1:]  # drop the timestamp column
         instance_name_map = defaultdict(list)  # k: instance name, v: list of full feature names
         for col in feature_columns:
             if "&" in col:
@@ -36,7 +36,7 @@ class DataProcessor:
         ordered_feature_cols = []
         for instance in self.config.all_enum.keys():
             if instance in instance_name_map:
-                ordered_feature_cols.extend(instance_name_map[instance])  # 添加所有属于该实例的指标列
+                ordered_feature_cols.extend(instance_name_map[instance])  # add all metric columns belonging to this instance
             else:
                 raise ValueError(f"Instance {instance} not found in raw data columns!")
 
@@ -91,11 +91,11 @@ class DataProcessor:
 
         windows = []
         for start_idx in range(0, feature_data.size(0) - self.window_size, self.stride):
-            x_window = feature_data[start_idx: start_idx + self.window_size]       # 输入窗口
+            x_window = feature_data[start_idx: start_idx + self.window_size]       # input window
            
             x_window = x_window.permute(1,0)            
             x_window = self.generate_patches_tensor(x_window, patch_size=self.small_window_size, stride=self.window_stride)  # [num_patches, num_features, patch_size]
-            y_window = feature_data[start_idx + self.window_size]                  # 预测目标（单步预测）
+            y_window = feature_data[start_idx + self.window_size]                  # prediction target (single-step)
             windows.append((x_window, y_window))
         return windows
     def generate_windows_gnet(self):
@@ -107,20 +107,20 @@ class DataProcessor:
             # [window_size, num_features]
             x_window = feature_data[start_idx: start_idx + self.window_size]
 
-            # 转换为 (num_features, window_size)
+            # convert to (num_features, window_size)
             x_window = x_window.T  # [N, T]
 
-            # 增加通道维度 C_in=1，并扩展 batch 维度
-            # 最终形状: (1, 1, N, T)
+            # add channel dim C_in=1 and expand the batch dim
+            # final shape: (1, 1, N, T)
             x_window = x_window.unsqueeze(0)  
 
-            # 单步预测目标: [num_features]
+            # single-step prediction target: [num_features]
             y_window = feature_data[start_idx + self.window_size]
 
             windows.append((x_window, y_window))
         return windows
     def generate_windows_normal(self):
-        """生成滑动时间窗口的数据对 (past, future)，输出形状 (B, C_in, N, T)"""
+        """Generate sliding-window data pairs (past, future); output shape (B, C_in, N, T)."""
         feature_data = torch.tensor(self.df.iloc[:, 1:].values, dtype=torch.float)  # [T, num_features]
 
         windows = []
@@ -128,11 +128,11 @@ class DataProcessor:
             # [window_size, num_features]
             x_window = feature_data[start_idx: start_idx + self.window_size]
 
-            # 转换为 (num_features, window_size)
+            # convert to (num_features, window_size)
             x_window = x_window.T  # [N, T]
           
 
-            # 单步预测目标: [num_features]
+            # single-step prediction target: [num_features]
             y_window = feature_data[start_idx + self.window_size]
 
             windows.append((x_window, y_window))
@@ -140,11 +140,11 @@ class DataProcessor:
 
     def generate_multi_windows(self, num_windows):
         """
-        生成由 num_windows 个窗口组成的输入序列, 每个窗口长度为 window_size, 窗口之间按 window_stride 滑动。
+        Generate an input sequence of num_windows windows, each of length window_size, sliding between windows by window_stride.
 
-        :param num_windows: 输入序列中的窗口数量
-        :return: list[(x_window, y_window)]，其中 x_window 形状为 [num_windows, num_features, window_size]，
-                 y_window 为最后一个窗口结束后的单步目标 [num_features]
+        :param num_windows: number of windows in the input sequence
+        :return: list[(x_window, y_window)], where x_window has shape [num_windows, num_features, window_size],
+                 y_window is the single-step target after the last window [num_features]
         """
         if num_windows < 1:
             raise ValueError("num_windows must be a positive integer")
@@ -183,8 +183,8 @@ class TimeWindowDataset(Dataset):
         self.config = config
         
 
-        #self.windows = self.data_processor.generate_windows_normal()  # 生成滑动窗口数据对
-        self.windows = self.data_processor.generate_multi_windows(5)  # 生成滑动窗口数据对
+        #self.windows = self.data_processor.generate_windows_normal()  # generate sliding-window data pairs
+        self.windows = self.data_processor.generate_multi_windows(5)  # generate sliding-window data pairs
 
 
 

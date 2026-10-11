@@ -5,13 +5,13 @@ import pandas as pd
 
 
 def normalize_dataframe(data):
-    # 获取 DataFrame 的列名
+    # Get the DataFrame column names
     data_without_time = data.drop(['timestamp'], axis=1)
 
-    # 对每一列进行归一化操作
+    # Normalize each column
     normalized_data = preprocessing.normalize(data_without_time.values, axis=0)
 
-    # 创建新的 DataFrame，使用原始列名
+    # Create a new DataFrame using the original column names
     normalized_df = pd.DataFrame(normalized_data, columns=data_without_time.columns)
     normalized_df['timestamp'] = data['timestamp']
 
@@ -46,5 +46,5 @@ def df_time_limit_normalization(df, begin_timestamp, end_timestamp):
 
 def time_string_2_timestamp(time_string):
     dt_object = datetime.strptime(time_string, '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.utc)
-    # 使用 timestamp() 将 datetime 对象转换为时间戳
+    # Use timestamp() to convert the datetime object to a timestamp
     return int(dt_object.timestamp())

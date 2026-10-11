@@ -62,7 +62,7 @@ def evaluate_topk_accuracy(all_ans, all_labels, topk_list=[1, 3, 5]):
     total = len(all_ans)
 
     for pred_list, label in zip(all_ans, all_labels):
-        # 确保 label 是列表格式
+        # Ensure label is in list format
         label = [label] if isinstance(label, str) else label
         label_set = set(label)
         for k in topk_list:

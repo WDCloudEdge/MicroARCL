@@ -219,7 +219,7 @@ def gnn_residual(ns_dir, sev, start, end, lag, use_W=False, epochs=200,
     with torch.no_grad():
         gap = X - model(X)
         resid = gap[abn].mean(0) - gap[normal].mean(0)      # [N,C]
-        resid = torch.clamp(resid, min=0.0)                 #越大越异常 -> 取正
+        resid = torch.clamp(resid, min=0.0)                 # larger = more anomalous -> keep positive
         comp = torch.tensor(COMP_W[:C])
         Rvec = (resid * comp).sum(1)
     return {s: float(Rvec[idx[s]]) for s in svcs}

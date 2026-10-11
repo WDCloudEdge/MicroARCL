@@ -3,27 +3,27 @@ from datetime import datetime
 
 
 def time_string_2_timestamp(time_string):
-    # 设置北京时区
+    # Set the Beijing timezone
     beijing_tz = pytz.timezone('Asia/Shanghai')
 
-    # 将时间字符串转换为 datetime 对象
+    # Convert the time string to a datetime object
     dt_object = datetime.strptime(time_string, '%Y-%m-%d %H:%M:%S')
 
-    # 将 datetime 对象转换为北京时间
+    # Convert the datetime object to Beijing time
     dt_object = beijing_tz.localize(dt_object)
 
-    # 使用 timestamp() 将 datetime 对象转换为时间戳
+    # Use timestamp() to convert the datetime object to a timestamp
     return int(dt_object.timestamp())
 
 
 def timestamp_2_time_string(timestamp):
-    # 设置北京时区
+    # Set the Beijing timezone
     beijing_tz = pytz.timezone('Asia/Shanghai')
 
-    # 将时间戳转换为 datetime 对象
+    # Convert the timestamp to a datetime object
     dt_object = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc)
 
-    # 将 datetime 对象转换为北京时间
+    # Convert the datetime object to Beijing time
     dt_object = dt_object.astimezone(beijing_tz)
 
     return dt_object.strftime("%Y-%m-%d %H:%M:%S")

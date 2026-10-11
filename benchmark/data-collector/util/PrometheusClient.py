@@ -297,7 +297,7 @@ class PrometheusClient:
         df = pd.concat(tempdfs, axis=1)
         df = df.fillna(0)
 
-        # 聚合
+        # Aggregate
         final_df = pd.DataFrame()
         final_df['timestamp'] = df.index
         final_df.set_index('timestamp', inplace=True)

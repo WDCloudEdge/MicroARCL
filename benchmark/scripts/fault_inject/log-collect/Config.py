@@ -7,15 +7,15 @@ class Config:
         self.svcs = set()
         self.pods = set()
 
-        self.interval = 10 * 60  # 每次收集数据的时间（10min）
+        self.interval = 10 * 60  # interval between data collections (10 min)
         # duration related to interval
         self.duration = self.interval
         self.start = int(round((time.time() - self.duration)))
         self.end = int(round(time.time()))
 
         # prometheus
-        self.prom_range_url = "http://47.99.240.112:31444/api/v1/query_range"  # istio支持
-        self.prom_range_url_node = "http://47.99.240.112:31222/api/v1/query_range"  # 原生Prometheus
+        self.prom_range_url = "http://47.99.240.112:31444/api/v1/query_range"  # istio support
+        self.prom_range_url_node = "http://47.99.240.112:31222/api/v1/query_range"  # native Prometheus
         self.prom_no_range_url_node = "http://47.99.240.112:31222/api/v1/query"
         self.prom_no_range_url = "http://47.99.240.112:31444/api/v1/query"
         self.step = 5
@@ -29,7 +29,7 @@ class Config:
         self.kiali_url = 'http://47.99.240.112:32001/kiali/api'
 
         # kubernetes
-        self.k8s_config = 'config.yaml'  # kubernetes配置文件地址
+        self.k8s_config = 'config.yaml'  # kubernetes config file path
 
         # concurrency set
         self.user = 'test-hipster'

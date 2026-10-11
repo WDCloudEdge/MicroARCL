@@ -64,13 +64,13 @@ COLLECTOR="$BENCHMARK_ROOT/data-collector/Main.py"
 LOCUST_HOST="${LOCUST_HOST:-http://${HOST_IP:?Set HOST_IP or LOCUST_HOST}:35696}"
 LOCUST_USERS="${LOCUST_USERS:-3}"
 LOCUST_SPAWN_RATE="${LOCUST_SPAWN_RATE:-10}"
-# 默认用 mix workload：同时拉起 intent 与 original-bench 两种用户，按 weight 混流。
+# Use the mix workload to run intent and original-bench users at their configured weights.
 LOCUSTFILE="${LOCUSTFILE:-$dir/../locustfile_MARBLEBench_mix.py}"
-# 两种 workload 的比例(intent : original)，透传给 locustfile 里的两个 User 类。
-# 需 export，locust 子进程才能读到。LOCUST_USERS 要足够大比例才能体现。
+# Pass the intent:original workload ratio to the two Locust User classes.
+# Export these values for Locust; enough users are needed to reflect the ratio.
 export MARBLE_WEIGHT_INTENT="${MARBLE_WEIGHT_INTENT:-1}"
 export MARBLE_WEIGHT_ORIG="${MARBLE_WEIGHT_ORIG:-1}"
-# 每个窗口的数据(含 task.log)输出目录前缀，相对 benchmark/data/ 目录。
+# Prefix for each window output directory (including task.log), relative to benchmark/data/.
 if [ "$INJECT_FAULT" = "true" ]; then
     default_data_prefix="MARBLEBench/abnormal/load-${LOCUST_USERS}"
 else
@@ -78,7 +78,7 @@ else
 fi
 DATA_PREFIX="${DATA_PREFIX:-$default_data_prefix}"
 
-# label 文件与数据放在一起，写到 data/<DATA_PREFIX>/<service>_label.txt
+# Store labels beside the data at data/<DATA_PREFIX>/<service>_label.txt.
 label_file="$BENCHMARK_ROOT/data/${DATA_PREFIX}/${service}_label.txt"
 mkdir -p "$BENCHMARK_ROOT/data/${DATA_PREFIX}"
 
@@ -93,12 +93,11 @@ LOAD_DURATION=$((PRE_FAULT + FAULT))  # load runs from 5m mark until fault ends
 locust_pid=""
 current_yaml=""
 cleanup() {
-    # 先解除 trap：net_latency 等故障删除时 chaos-mesh 的 finalizer 可能因网络
-    # 延迟迟迟不完成，导致下面的 kubectl delete 阻塞；若不解除 trap，再按一次
-    # Ctrl+C 只会重新进入 cleanup 继续卡住。解除后第二次 Ctrl+C 可直接终止脚本。
+    # Clear the trap before cleanup: network latency can stall the Chaos Mesh finalizer.
+    # A second Ctrl+C can then stop the script instead of reentering cleanup.
     trap - INT TERM
     [ -n "$locust_pid" ] && kill "$locust_pid" 2>/dev/null
-    # --wait=false: 只下发删除指令、不阻塞等待 finalizer 执行完成。
+    # --wait=false avoids blocking on the Chaos Mesh finalizer.
     [ -n "$current_yaml" ] && kubectl delete -f "$current_yaml" -n chaos-mesh --ignore-not-found --wait=false 2>/dev/null
     kubectl delete -f "$dir/deployments.yaml" --ignore-not-found --wait=false 2>/dev/null
 }
@@ -141,7 +140,7 @@ run_window() {
     sleep "$BASELINE"
 
     # phase 1: start load (headless, self-terminates after LOAD_DURATION)
-    # FAULT_SERVICE 让 locustfile 把权重向当前故障服务的任务倾斜。
+    # FAULT_SERVICE biases Locust traffic toward tasks using the affected service.
     ls_e=$(date +%s); ls_h="$(date +'%Y-%m-%d %H:%M:%S')"
     FAULT_SERVICE="$service" locust -f "$LOCUSTFILE" --host="$LOCUST_HOST" --headless \
         --only-summary \
@@ -151,15 +150,14 @@ run_window() {
     echo "    [$run_id] load started (pid $locust_pid) at $ls_h -> $task_log"
     sleep "$PRE_FAULT"
 
-    # pod_failure / pod_kill 会重启/重建 Pod，重启前的容器日志随之丢失
-    # (metrics/trace 存在 Prometheus/Jaeger 不受影响)。因此在注入故障、Pod
-    # 重启之前先把当前窗口的日志抢救到一个临时目录；窗口结束做最终收集时，
-    # 再由 Main.py --merge-prefault 把"已消失的 Pod"日志并回 log/(加后缀)。
+    # pod_failure and pod_kill lose the old container logs on restart.
+    # Snapshot logs before injection; Main.py --merge-prefault restores logs
+    # from pods that disappeared by the final collection.
     prefault_tmp=""
     # case "$fault" in
     #     pod_failure|pod_kill)
     #         prefault_tmp=".log_prefault_tmp"
-    #         echo "    [$run_id] pre-fault log snapshot (Pod 即将重启, 先抓日志)"
+    #         echo "    [$run_id] pre-fault log snapshot (pod will restart; capture logs first)"
     #         ( cd "$BENCHMARK_ROOT" && "$PYTHON" "$COLLECTOR" --user "$user_dir" \
     #             --start "$ws_e" --end "$(date +%s)" \
     #             --logs-only --log-subdir "$prefault_tmp" ) \
@@ -180,9 +178,8 @@ run_window() {
 
     # fault/normal observation interval end
     if [ "$INJECT_FAULT" = "true" ]; then
-        # --wait=false: net_latency 等故障删除时 chaos-mesh finalizer 需通过
-        # chaos-daemon 恢复网络，注入的延迟会拖慢该过程；默认的阻塞式 delete
-        # 会一直卡在这里。这里只下发删除、不等待 finalizer，恢复在后台完成。
+        # Network latency can delay Chaos Mesh finalization; delete asynchronously
+        # so recovery can finish in the background.
         kubectl delete -f "$yaml" -n chaos-mesh --ignore-not-found --wait=false
     fi
     fe_e=$(date +%s); fe_h="$(date +'%Y-%m-%d %H:%M:%S')"
@@ -226,13 +223,13 @@ run_window() {
         echo "task_log:     data/${user_dir}/task.log"
         case "$fault" in
             pod_failure|pod_kill)
-                echo "log_note:     Pod 重启; 消失 Pod 的重启前日志以 *_log_prefault.log 存于 log/" ;;
+                echo "log_note:     Pod restarted; pre-fault logs of disappeared pods are in log/*_log_prefault.log" ;;
         esac
         echo ""
     } >> "$label_file"
 
-    # 在销毁 deployment 之前收集本窗口的所有数据，否则 Pod 被删除后就取不到了。
-    # 对 pod_failure/pod_kill 额外把注入前快照里已消失的 Pod 日志并回 log/。
+    # Collect this window before deleting the deployment and its pods.
+    # Restore pre-fault logs for pods removed by pod_failure or pod_kill.
     echo "    [$run_id] collecting window data before teardown -> data/${user_dir}"
     merge_arg=()
     [ -n "$prefault_tmp" ] && merge_arg=(--merge-prefault "$prefault_tmp")

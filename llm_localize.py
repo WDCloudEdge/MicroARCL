@@ -5,85 +5,153 @@ import urllib.request
 from typing import Dict, List
 
 _SYSTEM_PROMPT = (
-    "你是资深的 Agent 系统故障诊断专家。给定一次故障时间窗内的粗粒度候选根因服务"
-    "（候选顺序由 GNN 或 severity 粗排产生，并同时提供两类分数）及其在执行图中的失败证据，"
-    "请判定更细粒度的根因。判定规则（务必遵守）：\n"
-    "0) 证据优先级：第一级是 `gnn_service_ranking` 与 `coarse_ranking`/`coarse_evidence`，"
-    "前者表示拓扑传播和上下游因果可疑度，后者表示指标直接严重程度；"
-    "第二级是执行图失败位置和空结果；第三级才是日志模板。"
-    "日志只是辅助证据，根因不一定会在日志中显式出现；缺少日志 signature 不能降低或否定 GNN/severity 候选。\n"
-    "1) GNN 和 severity 同时指向同一服务时，应视为最强的单服务根因候选。"
-    "两者冲突时，结合服务是否位于失败传播上游、severity 各分量（特别是 res_dev）和执行图失败起点裁决，"
-    "并在 reason 中解释为什么选择其中一个。\n"
-    "2) `signature` 是从当前系统日志动态抽取的模板，不是预定义错误类别。"
-    "高频且与 GNN/severity/执行图一致的模板可提升置信度；与一级证据冲突的单服务日志不得单独推翻粗排结果。"
-    "只有同一模板在多个独立服务上出现，且能解释候选服务的共同失效时，才可判为 `systemic`。\n"
-    "3) 若 `shared_signatures` 为空：**不要**仅凭空结果/级联失败判为 systemic。"
-    "应回到 GNN/severity 的高排名候选，把空结果视为可能的下游症状；资源型故障可以完全没有错误日志。\n"
-    "4) root_cause 要给出**具体服务名**（single_service 时）或具体共享依赖（systemic 时），"
-    "并与 reranked_topk[0] 保持一致。\n"
-    "仅输出一个 JSON 对象，不要输出多余文字。字段："
+    "You are a senior fault-diagnosis expert for Agent systems. Given the "
+    "coarse-grained candidate root-cause services within a fault time window "
+    "(candidate order is produced by GNN or severity coarse ranking, and both "
+    "kinds of scores are provided) and their failure evidence in the execution "
+    "graph, determine the finer-grained root cause. Decision rules (must follow):\n"
+    "0) Evidence priority: the first tier is `gnn_service_ranking` and "
+    "`coarse_ranking`/`coarse_evidence` -- the former reflects topological "
+    "propagation and upstream/downstream causal suspicion, the latter reflects "
+    "direct metric severity; the second tier is execution-graph failure "
+    "positions and empty results; the third tier is log templates. "
+    "Logs are only auxiliary evidence, and the root cause does not necessarily "
+    "appear explicitly in logs; a missing log signature must not lower or negate "
+    "a GNN/severity candidate.\n"
+    "1) When GNN and severity point to the same service, treat it as the "
+    "strongest single-service root-cause candidate. "
+    "When they conflict, adjudicate using whether the service sits upstream in "
+    "the failure propagation, the severity components (especially res_dev), and "
+    "the execution-graph failure origin, "
+    "and explain in `reason` why you chose one of them.\n"
+    "2) A `signature` is a template dynamically extracted from the current "
+    "system logs, not a predefined error category. "
+    "A high-frequency template consistent with GNN/severity/execution-graph can "
+    "raise confidence; single-service logs conflicting with first-tier evidence "
+    "must not by themselves overturn the coarse-ranking result. "
+    "Only when the same template appears across multiple independent services "
+    "and can explain the common failure of the candidate services may it be "
+    "judged `systemic`.\n"
+    "3) If `shared_signatures` is empty: do **not** judge systemic based on "
+    "empty results / cascading failures alone. "
+    "Fall back to the high-ranked GNN/severity candidates and treat empty "
+    "results as possible downstream symptoms; a resource-type fault may have no "
+    "error logs at all.\n"
+    "4) root_cause must give a **specific service name** (for single_service) or "
+    "a specific shared dependency (for systemic), "
+    "and be consistent with reranked_topk[0].\n"
+    "Output exactly one JSON object, no extra text. Fields:"
     '{"root_cause":"","root_cause_type":"systemic|single_service",'
     '"failure_stage":"planning|reasoning|tool-invocation|response-summary",'
     '"reason":"","evidence":[],"confidence":0.0,"reranked_topk":[],"suggested_fix":""}'
 )
 
 _EVIDENCE_FIELD_GUIDE = (
-    "\n\n输入 JSON 字段含义（必须按这些定义解读，不能自行猜测）：\n"
-    "A. `global.num_traces` 是用于详细 vertex 切片的 trace 数（可受上下文上限截断）；"
-    "`num_trace_analysis_graphs` 是调用链频率统计实际遍历的全部候选相关 trace 数；"
-    "`num_failed_traces` 是详细切片 trace 中候选服务 vertex 失败的 trace 数；"
-    "`num_problem_traces` 是至少有一个 top-k 候选服务 vertex 失败的完整 trace 数；"
-    "`failed_trace_examples` 只是少量文本样例，"
-    "完整问题 trace 以 `problem_trace_analysis.traces` 为准。\n"
-    "B. `coarse_ranking` 是指标严重程度排名。所有指标均优先使用异常窗前数据建立基线，"
-    "再检测异常窗内偏差。`severity` = `fail_rate` + "
-    "0.1*log1p(max(`latency_spike`-1,0)) + resource_weight*`res_dev` + "
-    "qps_weight*`qps_dev`，数值越大越可疑；"
-    "它是样本内相对分数，不是概率。`fail_rate` 是相对窗外成功率基线的平均下降；"
-    "`n_fail_points` 是持续低于该基线阈值的采样点数；`latency_spike` 是异常窗峰值/窗外基线中位数；"
-    "`qps_dev` 是QPS相对窗外基线的双向最大偏离；`res_dev` 是通过持续性尖峰检测后，"
-    "CPU 或内存峰值相对窗外基线中位数的最大偏离；"
-    "`cpu_dev`/`mem_dev` 分别表示各资源通道的偏离。`anomaly_types` 是观测到的表象类型全集；"
-    "`anomaly_type_scores` 是每种表象对 severity 的实际加权贡献，其中 availability=fail_rate，"
-    "latency=0.1*log1p(latency_spike-1)，cpu/memory共同分配resource_weight*res_dev，"
-    "qps=qps_weight*qps_dev。\n"
-    "C. `gnn_service_ranking` 是 GNN 综合指标异常、服务拓扑和故障传播后得到的服务排名；"
-    "`gnn_score` 越大越可疑，只能在本次样本内部比较，不是概率。候选中的 `coarse_evidence` 同时给出"
-    "该服务的 `gnn_rank/gnn_score` 与 `severity_rank/severity_score`；null 表示该证据源没有该服务。\n"
-    "D. `matched_failed_vertexes` 是状态失败 trace 中候选服务的直接失败切片。`failed=true` 表示该服务自身"
-    "messages、level_spans输入输出或level_routes传给下游的params中出现动态错误模板，或它是task_status=8"
-    "对应的summarizer；`empty_results` 只作描述，visible和空输出都不能作为失败判据；"
-    "`signatures/error_texts` 是执行图内错误证据。"
-    "`status` 是原始执行状态码，不能脱离 empty_results/signatures 单独解释为成功或失败。\n"
-    "E. `problem_trace_analysis` 中问题 trace 取两类判据的并集：task_status=3 是任务失败，7 是状态成功，"
-    "8 是总结失败（状态错误归给summarizer）；status=3表示链路中途终止，错误归给实际链尾且不补summarizer；"
-    "或者服务vertex中检测到错误签名。"
-    "trace 入选后保留完整上下游链及链上所有失败 vertex。"
-    "`vertex_chain` 按执行 level 从左到右排列，只保留 Planner 首节点及各 xxxGroup，不计 xxxGroup/xxAgent；"
-    "`service_chain` 同样按上游到下游排列。仅task_status为7/8时，原始level_routes未记录的summarizer会补在链尾。"
-    "`call_chain_frequencies.trace_count/trace_ratio` 是完全相同服务链出现的次数/占问题 trace 比例。"
-    "`service_frequencies.traces_containing_service/trace_coverage` 是全部已加载trace中经过该服务的数量/比例；"
-    "`problem_trace_count/problem_trace_ratio` 是问题trace中经过该服务的数量/比例；"
-    "`chain_occurrences` 保留服务在链中非连续重复出现的次数；`status_error_count/status_total_count` 是状态通道，"
-    "`vertex_error_count/vertex_total_count` 是错误签名通道；`combined_error_count` 和 `combined_total_count` 分别"
-    "按trace_id对两路错误集合、总集合取并集去重，`combined_error_ratio` 是相除结果。`failed_trace_count` 是两路判据按trace取并集"
-    "后的数量。高覆盖率只表示常经服务（如 planner），不能单独证明它是根因；"
-    "应重点比较链上最早失败位置、失败频率及 GNN/severity。\n"
-    "F. 日志字段仅为辅助证据。`log_signature_counts` 是异常窗内动态模板次数；"
-    "`log_signature_frequency_per_minute` 是每分钟频率；`frequent_signatures` 是达到最低频次的模板；"
-    "`shared_signatures` 只包含至少两个候选服务共同出现的模板；`log_errors` 是匹配模板的原始日志样例。\n"
-    "G. 输出中 `failure_stage`：planning=规划/任务拆分，reasoning=模型推理，"
-    "tool-invocation=服务或工具调用，response-summary=最终汇总/响应生成。\n"
+    "\n\nMeaning of the input JSON fields (interpret strictly by these "
+    "definitions, do not guess):\n"
+    "A. `global.num_traces` is the number of traces used for detailed vertex "
+    "slicing (may be truncated by the context limit); "
+    "`num_trace_analysis_graphs` is the full number of candidate-related traces "
+    "actually traversed for call-chain frequency statistics; "
+    "`num_failed_traces` is the number of detailed-slice traces in which a "
+    "candidate-service vertex failed; "
+    "`num_problem_traces` is the number of complete traces in which at least one "
+    "top-k candidate-service vertex failed; "
+    "`failed_trace_examples` is only a small set of text samples, "
+    "the complete problem traces are given by `problem_trace_analysis.traces`.\n"
+    "B. `coarse_ranking` is the metric-severity ranking. All metrics first build "
+    "a baseline from pre-anomaly-window data, "
+    "then detect deviations within the anomaly window. `severity` = `fail_rate` "
+    "+ 0.1*log1p(max(`latency_spike`-1,0)) + resource_weight*`res_dev` + "
+    "qps_weight*`qps_dev`, larger is more suspicious; "
+    "it is an in-sample relative score, not a probability. `fail_rate` is the "
+    "average drop relative to the out-of-window success-rate baseline; "
+    "`n_fail_points` is the number of sampling points continuously below that "
+    "baseline threshold; `latency_spike` is the anomaly-window peak / "
+    "out-of-window baseline median; "
+    "`qps_dev` is the maximum bidirectional QPS deviation from the out-of-window "
+    "baseline; `res_dev` is, after passing sustained-spike detection, "
+    "the maximum deviation of the CPU or memory peak from the out-of-window "
+    "baseline median; "
+    "`cpu_dev`/`mem_dev` denote the deviation of each resource channel. "
+    "`anomaly_types` is the full set of observed symptom types; "
+    "`anomaly_type_scores` is the actual weighted contribution of each symptom "
+    "to severity, where availability=fail_rate, "
+    "latency=0.1*log1p(latency_spike-1), cpu/memory jointly share "
+    "resource_weight*res_dev, qps=qps_weight*qps_dev.\n"
+    "C. `gnn_service_ranking` is the service ranking the GNN produces after "
+    "fusing metric anomalies, service topology and fault propagation; "
+    "a larger `gnn_score` is more suspicious, comparable only within this "
+    "sample, not a probability. The `coarse_evidence` in each candidate also "
+    "gives that service's `gnn_rank/gnn_score` and "
+    "`severity_rank/severity_score`; null means the evidence source lacks that "
+    "service.\n"
+    "D. `matched_failed_vertexes` are the direct failure slices of candidate "
+    "services in status-failed traces. `failed=true` means the service itself "
+    "shows a dynamic error template in its messages, level_spans input/output, "
+    "or the params passed downstream in level_routes, or it is the summarizer "
+    "corresponding to task_status=8; `empty_results` is descriptive only, and "
+    "neither visible nor empty output can serve as a failure criterion; "
+    "`signatures/error_texts` are error evidence within the execution graph. "
+    "`status` is the raw execution status code and must not be interpreted as "
+    "success or failure independently of empty_results/signatures.\n"
+    "E. In `problem_trace_analysis`, a problem trace takes the union of two "
+    "criteria: task_status=3 is task failure, 7 is status success, "
+    "8 is summarization failure (the status error is attributed to the "
+    "summarizer); status=3 means the chain terminated midway, with the error "
+    "attributed to the actual chain tail and no summarizer appended; "
+    "or an error signature is detected in a service vertex. "
+    "Once a trace is selected, the complete upstream/downstream chain and all "
+    "failed vertexes on it are retained. "
+    "`vertex_chain` is arranged left to right by execution level, keeping only "
+    "the Planner head node and each xxxGroup, excluding xxxGroup/xxAgent; "
+    "`service_chain` is likewise arranged upstream to downstream. Only when "
+    "task_status is 7/8 is a summarizer not recorded in the raw level_routes "
+    "appended to the chain tail. "
+    "`call_chain_frequencies.trace_count/trace_ratio` is the count / "
+    "proportion-of-problem-traces of identical service chains. "
+    "`service_frequencies.traces_containing_service/trace_coverage` is the count "
+    "/ proportion of all loaded traces passing through that service; "
+    "`problem_trace_count/problem_trace_ratio` is the count / proportion of "
+    "problem traces passing through that service; "
+    "`chain_occurrences` retains the count of non-consecutive repeated "
+    "appearances of a service in the chain; `status_error_count/"
+    "status_total_count` is the status channel, "
+    "`vertex_error_count/vertex_total_count` is the error-signature channel; "
+    "`combined_error_count` and `combined_total_count` are respectively "
+    "the deduplicated union by trace_id of the two error sets and total sets, "
+    "and `combined_error_ratio` is their quotient. `failed_trace_count` is the "
+    "count after taking the union of the two criteria by trace. "
+    "High coverage only indicates a frequently traversed service (e.g. planner) "
+    "and cannot by itself prove it is the root cause; "
+    "focus on comparing the earliest failure position on the chain, failure "
+    "frequency, and GNN/severity.\n"
+    "F. Log fields are auxiliary evidence only. `log_signature_counts` is the "
+    "count of dynamic templates within the anomaly window; "
+    "`log_signature_frequency_per_minute` is the per-minute frequency; "
+    "`frequent_signatures` are templates reaching the minimum frequency; "
+    "`shared_signatures` contains only templates appearing in at least two "
+    "candidate services together; `log_errors` are raw log samples matching the "
+    "templates.\n"
+    "G. In the output, `failure_stage`: planning=planning/task decomposition, "
+    "reasoning=model reasoning, "
+    "tool-invocation=service or tool call, response-summary=final "
+    "aggregation/response generation.\n"
 )
 
 
 _STAGE1_PROMPT = (
-    "你负责根因定位的第一阶段：以 GNN 为锚点进行候选初筛。"
-    "GNN 已融合拓扑、指标异常和传播关系，是本阶段的首要依据；severity 用于检验指标直接严重度。"
-    "逐个比较候选，但只输出简洁、可审计的证据结论，不输出隐含思维过程。"
-    "必须保留 GNN rank=1 的服务。除它之外，选择最受 severity 或多项指标支持的候选，"
-    "shortlist 最多包含输入指定的 max_shortlist 个服务。仅输出 JSON："
+    "You handle the first stage of root-cause localization: GNN-anchored "
+    "candidate screening. "
+    "GNN has already fused topology, metric anomalies and propagation relations "
+    "and is the primary basis of this stage; severity checks direct metric "
+    "severity. "
+    "Compare candidates one by one, but output only concise, auditable evidence "
+    "conclusions, not the implicit thought process. "
+    "You must retain the service with GNN rank=1. Besides it, select the "
+    "candidates most supported by severity or multiple metrics; "
+    "the shortlist contains at most the max_shortlist services specified in the "
+    "input. Output JSON only:"
     '{"candidate_assessments":[{"service":"","gnn_assessment":"",'
     '"severity_assessment":"","provisional_role":"root|propagated|uncertain"}],'
     '"shortlist":[],"summary":""}'
@@ -91,13 +159,21 @@ _STAGE1_PROMPT = (
 
 
 _STAGE2_PROMPT = (
-    "你负责根因定位的第二阶段：只核验 shortlist 中的候选，并进一步缩小范围。"
-    "证据优先级为 GNN > 指标严重度与异常维度 > 执行图直接失败频率/上游位置 > 日志。"
-    "日志只能佐证，不能单独推翻 GNN top-1；服务经过很多 trace 也不能单独证明是根因。"
-    "若要淘汰 GNN top-1，必须同时满足：(a) 另一候选有更直接的指标或失败频率证据；"
-    "(b) 执行图显示另一候选是更早的直接失败点；并明确填写 override_gnn_top1。"
-    "逐个给出指标严重度、问题 trace 频率、传播位置和日志一致性结论，"
-    "但不要输出隐含思维过程。survivors 最多为 max_survivors 个。仅输出 JSON："
+    "You handle the second stage of root-cause localization: verify only the "
+    "candidates in the shortlist and narrow the scope further. "
+    "Evidence priority is GNN > metric severity and anomaly dimensions > "
+    "execution-graph direct failure frequency/upstream position > logs. "
+    "Logs can only corroborate, not independently overturn the GNN top-1; a "
+    "service passing through many traces also cannot by itself prove it is the "
+    "root cause. "
+    "To eliminate the GNN top-1, both must hold: (a) another candidate has more "
+    "direct metric or failure-frequency evidence; "
+    "(b) the execution graph shows another candidate is an earlier direct "
+    "failure point; and override_gnn_top1 must be filled in explicitly. "
+    "Give conclusions on metric severity, problem-trace frequency, propagation "
+    "position and log consistency one by one, "
+    "but do not output the implicit thought process. survivors is at most "
+    "max_survivors. Output JSON only:"
     '{"candidate_checks":[{"service":"","metric_evidence":"",'
     '"frequency_evidence":"","graph_position":"","log_evidence":"",'
     '"decision":"keep|eliminate"}],"survivors":[],"ranking":[],'
@@ -107,13 +183,19 @@ _STAGE2_PROMPT = (
 
 
 _FINAL_STAGE_PROMPT = (
-    "你负责根因定位的最终阶段。只能在第二阶段 survivors 中选择单服务根因；"
-    "只有同一高频模板跨多个独立服务且确实解释共同失效时才允许 systemic。"
-    "默认选择仍存活的 GNN 最高排名服务。只有第二阶段已经按双重条件明确批准"
-    "override_gnn_top1 时，才允许其他服务超过它。综合 severity 分量、直接失败频率、"
-    "上游失败位置和日志佐证，输出简洁可审计结论，不输出隐含思维过程。"
-    "root_cause 为 single_service 时必须是 survivors 中的服务，并与 reranked_topk[0] 一致。"
-    "仅输出 JSON："
+    "You handle the final stage of root-cause localization. You may only choose "
+    "a single-service root cause from the second-stage survivors; "
+    "systemic is allowed only when the same high-frequency template spans "
+    "multiple independent services and truly explains the common failure. "
+    "By default choose the highest-ranked GNN service still surviving. Only when "
+    "the second stage has explicitly approved "
+    "override_gnn_top1 under the dual conditions may another service surpass it. "
+    "Combining severity components, direct failure frequency, "
+    "upstream failure position and log corroboration, output concise auditable "
+    "conclusions, not the implicit thought process. "
+    "When root_cause is single_service it must be a service in survivors and "
+    "consistent with reranked_topk[0]. "
+    "Output JSON only:"
     '{"root_cause":"","root_cause_type":"systemic|single_service",'
     '"failure_stage":"planning|reasoning|tool-invocation|response-summary",'
     '"reason":"","evidence":[],"confidence":0.0,"reranked_topk":[],'
@@ -122,27 +204,41 @@ _FINAL_STAGE_PROMPT = (
 
 
 _RANK_SYSTEM_PROMPT = (
-    "你是 Agent 系统根因定位专家。给定一次故障时间窗内的候选根因服务及其证据，"
-    "请按“最可能是根因”从高到低对候选服务重新排序。\n"
-    "证据优先级：\n"
-    "1) 指标严重度 coarse_ranking：severity 越大越可疑，关注 res_dev（资源）、"
-    "latency（延迟）、availability（成功率）分量；\n"
-    "2) 执行图直接失败位置与频率：越上游、越早失败越可疑；空结果通常是下游症状，不单独定根因；\n"
-    "3) 日志 signature：高频、跨多个服务一致可加分，但不能单独推翻指标证据。\n"
-    "只输出一个 JSON 对象，不要输出多余文字：\n"
-    '{"reranked_topk":["服务名，按可疑度从高到低"],"root_cause":"reranked_topk[0]",'
+    "You are a root-cause localization expert for Agent systems. Given the "
+    "candidate root-cause services within a fault time window and their "
+    "evidence, "
+    "reorder the candidate services from most to least likely to be the root "
+    "cause.\n"
+    "Evidence priority:\n"
+    "1) metric severity coarse_ranking: larger severity is more suspicious; "
+    "focus on the res_dev (resource), "
+    "latency, and availability (success rate) components;\n"
+    "2) execution-graph direct failure position and frequency: the more "
+    "upstream and the earlier the failure, the more suspicious; empty results "
+    "are usually downstream symptoms and do not alone determine the root "
+    "cause;\n"
+    "3) log signature: high-frequency and consistent across multiple services "
+    "can add points, but cannot alone overturn metric evidence.\n"
+    "Output exactly one JSON object, no extra text:\n"
+    '{"reranked_topk":["service names, most to least suspicious"],'
+    '"root_cause":"reranked_topk[0]",'
     '"failure_stage":"planning|reasoning|tool-invocation|response-summary",'
     '"reason":"","confidence":0.0}'
 )
 
 _RANK_FIELD_GUIDE = (
-    "\n\n字段说明：`coarse_ranking` 是指标严重度排名，"
-    "`severity`=fail_rate+0.1*log1p(latency_spike-1)+w*res_dev+w*qps_dev，越大越可疑；"
-    "`candidates[].coarse_evidence` 给出该服务的 severity_rank/severity_score；"
-    "`candidates[].matched_failed_vertexes` 是候选服务在执行图中的失败切片；"
-    "`candidates[].log_signatures` 是动态日志错误模板；"
-    "`problem_trace_analysis.service_frequencies` 是各服务在问题 trace 中的出现/失败频率；"
-    "`shared_signatures` 是跨多个服务共现的日志模板。"
+    "\n\nField notes: `coarse_ranking` is the metric-severity ranking, "
+    "`severity`=fail_rate+0.1*log1p(latency_spike-1)+w*res_dev+w*qps_dev, larger "
+    "is more suspicious; "
+    "`candidates[].coarse_evidence` gives that service's "
+    "severity_rank/severity_score; "
+    "`candidates[].matched_failed_vertexes` are the candidate service's failure "
+    "slices in the execution graph; "
+    "`candidates[].log_signatures` are dynamic log error templates; "
+    "`problem_trace_analysis.service_frequencies` are each service's "
+    "occurrence/failure frequency in problem traces; "
+    "`shared_signatures` are log templates co-occurring across multiple "
+    "services."
 )
 
 
@@ -160,9 +256,9 @@ def single_pass_rank_localize(agg: Dict, cfg) -> Dict:
     messages = [
         {'role': 'system', 'content': _RANK_SYSTEM_PROMPT + _RANK_FIELD_GUIDE},
         {'role': 'user', 'content': (
-            "故障证据聚合如下（JSON）：\n"
+            "The aggregated fault evidence is as follows (JSON):\n"
             + json.dumps(agg, ensure_ascii=False, indent=2)
-            + "\n请对候选服务重新排序并输出规定的 JSON。")},
+            + "\nReorder the candidate services and output the specified JSON.")},
     ]
     result = _extract_json(_call_openai_compatible(messages, cfg))
     order = _valid_service_order(result.get('reranked_topk'), allowed)
@@ -187,9 +283,9 @@ def single_pass_rank_localize(agg: Dict, cfg) -> Dict:
 
 def build_messages(agg: Dict) -> list:
     user = (
-        "故障证据聚合如下（JSON）：\n"
+        "The aggregated fault evidence is as follows (JSON):\n"
         + json.dumps(agg, ensure_ascii=False, indent=2)
-        + "\n请据此定位细粒度根因并输出规定的 JSON。"
+        + "\nLocate the fine-grained root cause accordingly and output the specified JSON."
     )
     return [
         {"role": "system", "content": _SYSTEM_PROMPT + _EVIDENCE_FIELD_GUIDE},
@@ -219,14 +315,15 @@ def rule_based_localize(agg: Dict) -> Dict:
         if not systemic:
             shared_list = []
         else:
-            root = f'共享日志故障：{signature[:180]}'
+            root = f'Shared log fault: {signature[:180]}'
             promoted = services + [s for s in reranked if s not in services]
             return {
                 'root_cause': root,
                 'root_cause_type': 'systemic',
                 'failure_stage': 'tool-invocation',
-                'reason': (f"动态日志模板在 {n} 个服务中出现，"
-                           f"异常窗内累计 {occurrences} 次，且覆盖粗排 top-1。"),
+                'reason': (f"The dynamic log template appears in {n} services, "
+                           f"{occurrences} times total within the anomaly window, "
+                           f"and covers the coarse-ranking top-1."),
                 'evidence': [f'signature={signature}',
                              f'num_services={n}',
                              f'log_occurrences={occurrences}',
@@ -234,7 +331,7 @@ def rule_based_localize(agg: Dict) -> Dict:
                              f'corroborates_coarse_top1={corroborates_coarse}'],
                 'confidence': 0.85,
                 'reranked_topk': promoted,
-                'suggested_fix': '根据原始日志样例和执行图上下文处理该高频故障模板。',
+                'suggested_fix': 'Handle this high-frequency fault template based on the raw log samples and execution-graph context.',
                 '_mode': 'rule_based_dynamic_signature',
             }
     # No cross-service dynamic template -> defer to coarse top-1.
@@ -243,11 +340,11 @@ def rule_based_localize(agg: Dict) -> Dict:
         'root_cause': top,
         'root_cause_type': 'single_service',
         'failure_stage': 'tool-invocation',
-        'reason': '未发现足以覆盖 GNN top-1 的多源证据，回到 GNN top-1。',
+        'reason': 'No multi-source evidence sufficient to override the GNN top-1 was found; fall back to the GNN top-1.',
         'evidence': [],
         'confidence': 0.3,
         'reranked_topk': reranked,
-        'suggested_fix': '结合日志进一步确认。',
+        'suggested_fix': 'Confirm further with the logs.',
         '_mode': 'rule_based_fallback',
     }
 
@@ -364,7 +461,7 @@ def _stage1_evidence(agg: Dict, cfg, allowed: List[str]) -> Dict:
         row.get('service'): row for row in (agg.get('candidates') or [])
     }
     return {
-        'instruction': '先按 GNN 锚定，再用 severity 检查直接指标支持。',
+        'instruction': 'Anchor on GNN first, then use severity to check direct metric support.',
         'max_shortlist': min(
             max(1, int(getattr(cfg, 'llm_stage1_topk', 3))), len(allowed)),
         'gnn_top1': order[0] if order else None,
@@ -385,8 +482,9 @@ def _stage2_evidence(agg: Dict, cfg, shortlist: List[str],
                      gnn_top1: str) -> Dict:
     problem = agg.get('problem_trace_analysis') or {}
     return {
-        'instruction': ('逐项核验指标、直接失败频率、传播位置与日志；'
-                        '日志不能单独覆盖 GNN。'),
+        'instruction': ('Verify metrics, direct failure frequency, propagation '
+                        'position and logs item by item; logs cannot override '
+                        'GNN alone.'),
         'shortlist': shortlist,
         'gnn_top1': gnn_top1,
         'max_survivors': min(
@@ -404,8 +502,9 @@ def _stage2_evidence(agg: Dict, cfg, shortlist: List[str],
                 'problem_trace_definition'),
             'num_problem_traces': problem.get('num_problem_traces'),
             'representative_trace_note': (
-                '按 task_status、服务链和失败节点形态去重后的代表性样例；'
-                '总体频率以 call_chain_frequencies 和 service_frequencies 为准。'),
+                'Representative samples deduplicated by task_status, service '
+                'chain and failed-node shape; overall frequency is governed by '
+                'call_chain_frequencies and service_frequencies.'),
             'representative_traces': _representative_problem_traces(
                 problem.get('traces')),
             'call_chain_frequencies': _compact_chain_frequencies(

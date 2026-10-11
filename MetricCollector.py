@@ -167,7 +167,7 @@ def collect_call_latency(config: Config, _dir: str):
     call_df = pd.DataFrame()
 
     prom_util = PrometheusClient(config)
-    # P50，P90，P99
+    # P50, P90, P99
     prom_50_sql = 'histogram_quantile(0.50, sum(irate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, destination_workload_namespace, source_workload, le))' % config.namespace
     prom_90_sql = 'histogram_quantile(0.90, sum(irate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, destination_workload_namespace, source_workload, le))' % config.namespace
     prom_99_sql = 'histogram_quantile(0.99, sum(irate(istio_request_duration_milliseconds_bucket{destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, destination_workload_namespace, source_workload, le))' % config.namespace
@@ -202,7 +202,7 @@ def collect_svc_latency(config: Config, _dir: str):
     latency_df = pd.DataFrame()
 
     prom_util = PrometheusClient(config)
-    # P50，P90，P99
+    # P50, P90, P99
     prom_50_sql = 'histogram_quantile(0.50, sum(irate(istio_request_duration_milliseconds_bucket{reporter=\"destination\", destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, destination_workload_namespace, le))' % config.namespace
     prom_90_sql = 'histogram_quantile(0.90, sum(irate(istio_request_duration_milliseconds_bucket{reporter=\"destination\", destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, destination_workload_namespace, le))' % config.namespace
     prom_99_sql = 'histogram_quantile(0.99, sum(irate(istio_request_duration_milliseconds_bucket{reporter=\"destination\", destination_workload_namespace=\"%s\"}[1m])) by (destination_workload, destination_workload_namespace, le))' % config.namespace
@@ -232,7 +232,7 @@ def collect_svc_latency(config: Config, _dir: str):
     latency_df.to_csv(path, index=False, mode='a')
 
 
-# 获取机器的vCPU和memory使用
+# Get the vCPU and memory usage of the machine
 def collect_resource_metric(config: Config, _dir: str):
     metric_df = pd.DataFrame()
     vCPU_sql = 'sum(rate(container_cpu_usage_seconds_total{image!="",namespace="%s"}[1m]))' % config.namespace

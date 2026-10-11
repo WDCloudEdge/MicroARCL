@@ -138,7 +138,7 @@ def collect_svc_latency(config: Config, _dir: str, is_header: bool):
     _write_metric_csv(latency_df, path, is_header)
 
 
-# 获取机器的vCPU和memory使用
+# Get the vCPU and memory usage of the machine
 def collect_resource_metric(config: Config, _dir: str, is_header: bool):
     metric_df = pd.DataFrame()
     vCPU_sql = 'sum(rate(container_cpu_usage_seconds_total{image!="",namespace="%s"}[1m]))' % config.namespace
@@ -233,7 +233,7 @@ def collect_svc_metric(config: Config, _dir: str, is_header: bool):
     _write_metric_csv(final_df, path, is_header)
 
 
-# 收集容器CPU, memory, network
+# Collect container CPU, memory, network
 def collect_ctn_metric(config: Config, _dir: str, is_header: bool):
     pod_df = pd.DataFrame()
     prom_util = PrometheusClient(config)
@@ -412,7 +412,7 @@ def collect_node_metric(config: Config, _dir: str, is_header: bool):
     for node in nodes:
         prom_sql = 'rate(node_network_transmit_packets_total{device="cni0", instance="%s"}[1m]) / 1000' % node.node_name
         response = prom_util.execute_prom(config.prom_range_url_node, prom_sql)
-        # 改动
+        # change
         if response == []:
             continue
         values = response[0]['values']
@@ -496,10 +496,10 @@ def collect_node_metric(config: Config, _dir: str, is_header: bool):
 
 def collect(config: Config, _dir: str, is_header: bool):
     print('collect metrics')
-    # 建立文件夹
+    # Create the folder
     if not os.path.exists(_dir):
         os.makedirs(_dir)
-    # 收集各种数据
+    # Collect the various data
     collect_graph(config, _dir, is_header)
     collect_call_latency(config, _dir, is_header)
     collect_svc_latency(config, _dir, is_header)

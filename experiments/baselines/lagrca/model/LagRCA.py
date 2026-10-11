@@ -20,7 +20,7 @@ class LagRCA(nn.Module):
         self.lambda_granger = lambda_granger
         self.lambda_sparse = lambda_sparse
 
-        self.decoder = NodeDecoder(node_input_dim=64, hidden_dim=128, node_mapping=config.instance_metric_count_dict)  # 实例解码器
+        self.decoder = NodeDecoder(node_input_dim=64, hidden_dim=128, node_mapping=config.instance_metric_count_dict)  # instance decoder
 
         self.output_layer = nn.Linear(sca_hidden_dim, 1)
 
@@ -62,8 +62,8 @@ class LagRCA(nn.Module):
 
     def forward(self, x_window, y_window):
         
-        p = self.get_prediction(x_window)  # 获取预测结果
-        loss = self.loss(p, y_window)  # 计算损失
+        p = self.get_prediction(x_window)  # get the prediction
+        loss = self.loss(p, y_window)  # compute the loss
         return loss
 
     def get_prediction(self, x_window):

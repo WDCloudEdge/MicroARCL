@@ -15,7 +15,7 @@ def collect(config: Config, _dir: str):
     global global_namespace_svcs_dict
     global_namespace_svcs_dict = KubernetesClient(config).get_all_svc()
     # config.svcs = KubernetesClient(config).get_svc_list_name()
-    # 确定命名空间中需要访问的服务
+    # Determine the services to access in the namespace
     svcs = [svc for svc in config.svcs if
             'unknown' not in svc and 'redis' not in svc and 'istio-ingressgateway' not in svc]
     if config.namespace == 'horsecoder-test':
@@ -35,7 +35,7 @@ def collect(config: Config, _dir: str):
     pod_latency = {}
     net_latency = {}
 
-    # 遍历服务，收集各类trace数据
+    # Iterate services, collecting the various trace data
     for svc in svcs:
         if config.namespace == 'cloud-sock-shop' or config.namespace == 'trainticket':
             url = build_trace_url(config, svc)
@@ -55,11 +55,11 @@ def collect(config: Config, _dir: str):
         abnormal_half_dicts = {**abnormal_half_dicts, **abnormal_half_dict}
 
     # print(normal_dicts)
-    # 处理pod_latency和net_latency数据
+    # Process pod_latency and net_latency data
     pod_latency, net_latency = get_latency([normal_dicts, abnormal_dicts])
     # print(net_latency)
 
-    # 将数据持久化
+    # Persist the data
     normal_path = _dir + '/' + 'normal.pkl'
     inbound_path = _dir + '/' + 'inbound.pkl'
     outbound_path = _dir + '/' + 'outbound.pkl'
@@ -99,7 +99,7 @@ def build_trace_url(config: Config, svc):
 
 def build_trace_urls(config: Config):
     '''
-        构建每个服务每分钟的trace拉取路径（避免数据量太大）
+        Build the per-service per-minute trace fetch path (avoids too much data)
     '''
     svcs = [svc + '.' + config.namespace for svc in config.svcs if
             'unknown' not in svc and 'redis' not in svc and 'istio-ingressgateway' not in svc]
@@ -113,7 +113,7 @@ def build_trace_urls(config: Config):
 
 def pull(url):
     '''
-        拉取trace
+        Fetch traces
     '''
     response = requests.get(url)
     return response.json()['data']
@@ -140,7 +140,7 @@ def handle_istio_pod_id(node_id: str) -> str:
 
 
 def handle_traces_istio_old(trace_jsons, current_svc):
-    # 需要构建的trace列表
+    # List of traces to build
     normal_dicts = {}
     inbound_dicts = {}
     outbound_dicts = {}
@@ -149,19 +149,19 @@ def handle_traces_istio_old(trace_jsons, current_svc):
     outbound_half_dicts = {}
     abnormal_half_dicts = {}
     pod_latency = {}
-    # 遍历所有trace
+    # Iterate all traces
     for trace_json in trace_jsons:
 
-        # 定义标志位
+        # Define flags
         is_abnormal = False
         is_inbound = False
         is_outbound = False
-        is_half = False  # 是否需要将其拆开
+        is_half = False  # whether it needs to be split
 
-        # 定义一个trace
+        # Define a trace
         half_trace_dict = {}
         trace_dict = {'traceId': trace_json['traceID']}
-        # 定义trace字段
+        # Define trace fields
         trace_dict['call'] = []
         trace_dict['timestamp'] = []
         trace_dict['latency'] = []
@@ -169,21 +169,21 @@ def handle_traces_istio_old(trace_jsons, current_svc):
         trace_dict['svc'] = []
         trace_dict['call_instance'] = []
 
-        # 建立标志位数组，存放没有被访问过的span
+        # Build a flag array holding spans not yet visited
         span_flag = []
 
-        # 获取trace中的所有span
+        # Get all spans in the trace
         spans_dict = {}
         for span_json in trace_json['spans']:
             spans_dict[span_json['spanID']] = span_json
             span_flag.append(span_json['spanID'])
 
-        # 遍历trace中的所有span，处理数据(链路中的所有span都是在本trace内寻找其他span的)
+        # Iterate all spans in the trace, processing data (every span looks up other spans within this trace)
         for span_json in trace_json['spans']:
-            # 获取基本信息
+            # Get basic info
             trace_dict['timestamp'].append(span_json['startTime'])
             trace_dict['latency'].append(span_json['duration'])
-            # 根据状态码判断是否正常
+            # Judge normality from the status code
             for tag in span_json['tags']:
                 if tag['key'] == 'http.status_code':
                     http_status = int(tag['value'])
@@ -191,68 +191,68 @@ def handle_traces_istio_old(trace_jsons, current_svc):
                     if http_status < 200 or http_status >= 300:
                         is_abnormal = True
 
-            # 设置变量
-            node_id = None  # 节点id
-            caller_svc = None  # 调用者服务名
-            callee_svc = None  # 被调用者服务名
-            outbound_node_id = None  # 出边的节点id
-            namespace = None  # 命名空间
-            outbound_namespace = None  # 出边的命名空间
+            # Set variables
+            node_id = None  # node id
+            caller_svc = None  # caller service name
+            callee_svc = None  # callee service name
+            outbound_node_id = None  # outbound node id
+            namespace = None  # namespace
+            outbound_namespace = None  # outbound namespace
 
-            # 遍历span中的所有tag
+            # Iterate all tags in the span
             for tag in span_json['tags']:
-                # 找到节点id
+                # find the node id
                 if 'node_id' == tag['key']:
                     node_id = tag['value']
-                # 找到被调用者的服务名（如果你是的话）
+                # find the callee service name (if present)
                 if 'istio.canonical_service' == tag['key']:
                     callee_svc = tag['value']
                 if 'istio.namespace' == tag['key']:
                     namespace = tag['value']
 
-            # 查看是出边还是入边
+            # Check whether it is an outbound or inbound edge
             for tag in span_json['tags']:
-                # 如果是入边，判断是否有引用
+                # if inbound, check for references
                 if 'upstream_cluster' == tag['key']:
                     if 'inbound' in tag['value']:
-                        # 移除该span的标志位
+                        # remove this span's flag
                         span_flag.remove(span_json['spanID'])
-                        # 有引用，则找到相应的出边，绑定成一对
+                        # with a reference, find the matching outbound edge and bind them as a pair
                         if span_json['references'] != []:
                             for ref in span_json['references']:
                                 if ref['refType'] == 'CHILD_OF':
-                                    # 找到出边的span
+                                    # find the outbound span
                                     if ref['spanID'] not in spans_dict.keys():
                                         break
                                     else:
                                         outbound_span = spans_dict[ref['spanID']]
-                                        # 移除该span的标志位
+                                        # remove this span's flag
                                         if ref['spanID'] in span_flag:
                                             span_flag.remove(ref['spanID'])
-                                        # 获取出边的信息
+                                        # get the outbound edge info
                                         for outbound_tag in outbound_span['tags']:
-                                            # 找到出边的节点id
+                                            # find the outbound node id
                                             if 'node_id' == outbound_tag['key']:
                                                 outbound_node_id = outbound_tag['value']
-                                            # 找到调用者的服务名
+                                            # find the caller service name
                                             if 'istio.canonical_service' == outbound_tag['key']:
                                                 caller_svc = outbound_tag['value']
-                                                # 如果服务名是unknown，则将其替换
+                                                # if the service name is unknown, replace it
                                                 if caller_svc == 'unknown':
                                                     caller_svc = 'istio-ingressgateway'
                                             if 'istio.namespace' == outbound_tag['key']:
                                                 outbound_namespace = outbound_tag['value']
-                                        # 判断是否跨系统（通过命名空间取判断）
-                                        # 判断是出边还是入边(通过服务名去判断)
-                                        # 改变标志位
+                                        # determine whether it crosses systems (by namespace)
+                                        # determine outbound vs inbound (by service name)
+                                        # change the flag
                                         if caller_svc == 'istio-ingressgateway':
                                             outbound_namespace = namespace
                                         if namespace != outbound_namespace:
-                                            # 是跨系统的trace，判断是入边还是出边，并构建截断的trace_dict
+                                            # cross-system trace: determine inbound vs outbound and build a truncated trace_dict
                                             half_trace_dict = get_half_trace(trace_json)
                                             is_half = True
                                             if current_svc != callee_svc:
-                                                # 证明目前该方是调用者，为outbound
+                                                # this side is the caller, i.e. outbound
                                                 is_outbound = True
                                                 half_trace_dict['timestamp'][len(half_trace_dict['timestamp']) - 1] = -1
                                                 half_trace_dict['latency'][len(half_trace_dict['latency']) - 1] = -1
@@ -271,19 +271,19 @@ def handle_traces_istio_old(trace_jsons, current_svc):
                                                 half_trace_dict['call_instance'].append(
                                                     (handle_istio_node_id('OTHER_NODE'), handle_istio_node_id(node_id)))
 
-                        # 如果没有引用，则用特定字符替代
+                        # if no reference, substitute a specific placeholder
                         else:
                             caller_svc = 'OTHER_SYSTEM'
                             outbound_node_id = 'OTHER_NODE'
-                            # 为入边，改变标志位
+                            # inbound edge, change the flag
                             is_inbound = True
-                            # 其他信息
+                            # other info
                             trace_dict['timestamp'].insert(len(trace_dict['timestamp']) - 1, -1)
                             trace_dict['latency'].insert(len(trace_dict['latency']) - 1, -1)
                             trace_dict['http_status'].insert(len(trace_dict['http_status']) - 1, -1)
-                        # 将调用关系添加到trace中
+                        # add the call relation to the trace
                         trace_dict['svc'].append(callee_svc)
-                        # 补全信息
+                        # fill in the info
                         if node_id is not None:
                             trace_dict['call'].append((caller_svc, callee_svc))
                             trace_dict['call_instance'].append(
@@ -295,44 +295,44 @@ def handle_traces_istio_old(trace_jsons, current_svc):
                                 pod_latency_list.append(span_json['duration'])
                                 pod_latency[pod_latency_key] = pod_latency_list
 
-        # 再次进行遍历，找到没有对应调用关系的出边
+        # Iterate again to find outbound edges without a matching call relation
         for span_id in span_flag:
             span = spans_dict[span_id]
             node_id = None
             caller_svc = None
-            # 获取信息
+            # get info
             for span_tag in span['tags']:
-                # 找到节点id
+                # find the node id
                 if 'node_id' == span_tag['key']:
                     node_id = span_tag['value']
-                # 找到服务名
+                # find the service name
                 if 'istio.canonical_service' == span_tag['key']:
                     caller_svc = span_tag['value']
 
-            # 判断是否为出边，有则将其加入到trace中
+            # check if it is an outbound edge; if so, add it to the trace
             for span_tag in span['tags']:
                 if 'upstream_cluster' == span_tag['key']:
                     if 'outbound' in span_tag['value']:
-                        # 将其移除标志位
+                        # remove its flag
                         span_flag.remove(span['spanID'])
                         trace_dict['svc'].append('OTHER_SERVICE')
-                        # 补全信息
+                        # fill in the info
                         if node_id is not None:
                             trace_dict['call'].append((caller_svc, 'OTHER_SYSTEM'))
                             trace_dict['call_instance'].append(
                                 (handle_istio_node_id(node_id), handle_istio_node_id('OTHER_NODE')))
-                            # 其他信息
+                            # other info
                             trace_dict['timestamp'].insert(len(trace_dict['timestamp']), -1)
                             trace_dict['latency'].insert(len(trace_dict['latency']), -1)
                             trace_dict['http_status'].insert(len(trace_dict['latency']), -1)
-                        # 为出边，改变标志位
+                        # outbound edge, change the flag
                         is_outbound = True
 
-        # 再次进行遍历，判断是否为异常状况
+        # Iterate again to judge abnormal conditions
         if span_flag != []:
             is_abnormal = True
 
-        # 根据标志位判断是否加入各trace信息中
+        # Decide, based on flags, whether to add to each trace's info
         if is_abnormal == True:
             abnormal_dicts[trace_json['traceID']] = trace_dict
             if is_half == True:
@@ -357,10 +357,10 @@ def handle_traces_istio_old(trace_jsons, current_svc):
 
 
 
-def get_half_trace(trace_json):  # 获取需要阶段的trace_dict
-    # 定义一个trace
+def get_half_trace(trace_json):  # get the needed half trace_dict
+    # Define a trace
     trace_dict = {'traceId': trace_json['traceID']}
-    # 定义trace字段
+    # Define trace fields
     trace_dict['call'] = []
     trace_dict['timestamp'] = []
     trace_dict['latency'] = []
@@ -369,10 +369,10 @@ def get_half_trace(trace_json):  # 获取需要阶段的trace_dict
     trace_dict['call_instance'] = []
 
     for span_json in trace_json['spans']:
-        # 获取基本信息
+        # Get basic info
         trace_dict['timestamp'].append(span_json['startTime'])
         trace_dict['latency'].append(span_json['duration'])
-        # 根据状态码判断是否正常
+        # Judge normality from the status code
         for tag in span_json['tags']:
             if tag['key'] == 'http.status_code':
                 trace_dict['http_status'].append(tag['value'])
@@ -381,34 +381,34 @@ def get_half_trace(trace_json):  # 获取需要阶段的trace_dict
 
 
 '''
-    获取pod和net的延迟（将不符合要求的舍弃掉）
+    Get pod and net latency (discard entries that do not meet requirements)
 '''
 def get_latency(trace_list):
     pod_latency = {}
     net_latency = {}
-    # 遍历每一个trace，找到相关的数据
+    # Iterate each trace to find relevant data
     for trace_dict in trace_list:
         for key in trace_dict.keys():
             trace = trace_dict[key]
-            # 在trace中遍历每一个调用关系
+            # iterate each call relation in the trace
             for i in range(len(trace['call'])):
                 call = trace['call'][0]
-                # 判断是否是两个pod间的通信
+                # determine whether it is communication between two pods
                 if call[0] != 'OTHER_SYSTEM' and call[1] != 'OTHER_SYSTEM':
                     latency_key = call_instance_to_pod_name(trace['call_instance'][i])
-                    # 处理net_latency
+                    # process net_latency
                     net_latency_list = net_latency.get(latency_key, [])
-                    # net_latency取值为发包和回包的时间
+                    # net_latency is the time between sending and receiving packets
                     send_latency = trace['timestamp'][2 * i + 1] - trace['timestamp'][2 * i]
                     res_latency = (trace['timestamp'][2 * i] + trace['latency'][2 * i]) - (trace['timestamp'][2 * i + 1] + trace['latency'][2 * i + 1])
-                    # 如果发包或出包的时间为负数，则将其舍去
+                    # if the send/receive time is negative, discard it
                     # if send_latency < 0 or res_latency < 0:
                     #     continue
                     net_latency_list.append((send_latency, res_latency))
                     net_latency[latency_key] = net_latency_list
-                    # 处理pod_latency
+                    # process pod_latency
                     pod_latency_list = pod_latency.get(latency_key, [])
-                    # pod_latency取值为outbound服务的持续时间
+                    # pod_latency is the duration of the outbound service
                     pod_latency_list.append(trace['latency'][2 * i])
                     pod_latency[latency_key] = pod_latency_list
 
@@ -416,7 +416,7 @@ def get_latency(trace_list):
 
 
 '''
-    从call_instance中提取出podname
+    Extract the pod name from call_instance
 '''
 def call_instance_to_pod_name(call_instance):
     # return call_instance[0].split('.')[0] + '&' + call_instance[1].split('.')[1]

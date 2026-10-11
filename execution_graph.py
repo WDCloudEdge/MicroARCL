@@ -492,7 +492,7 @@ def _status_failed_services(graph: ExecGraph) -> set:
     if graph.task_status == 3:
         # The task stopped in the middle of the route. Attribute the status
         # failure to the last service actually reached, never to Summarizer.
-        # TODO 如果非线性执行，就返回所有service_chain上的服务
+        # TODO: for non-linear execution, return all services on the service_chain
         return {service_chain[-1]} if service_chain else set()
     if graph.task_status == 8:
         return {'agent-network-summarizer'} & set(service_chain)

@@ -81,3 +81,6 @@ urllib3==2.7.0
 wrapt==2.5.0
 xxhash==4.0.1
 yarl==1.25.1
+locust==2.46.0
+kubernetes==37.0.1
+pymysql==1.2.3

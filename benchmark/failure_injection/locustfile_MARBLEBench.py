@@ -50,469 +50,446 @@ class MARBLEBenchUser(HttpUser):
     wait_time = between(5, 10)
 
     TASK_DEFINITIONS = [
-        # ================================================================
-        # MARBLE Research: 论文检索、作者背景、arXiv/标题查询、网页抓取
-        # 能力面: related / recent / keyword / author / arxiv_id / title /
-        #        fetch_webpage
-        # ================================================================
+        # Research tasks.
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "我最近在研究大语言模型的多智能体协作(large language model "
-                "multi-agent collaboration)，帮我找几篇这个方向比较有代表性的"
-                "论文，最好带上标题、摘要和链接。"
+                "I've recently been studying large language model multi-agent "
+                "collaboration. Help me find a few representative papers in this "
+                "direction, preferably with titles, abstracts, and links."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "我想了解扩散模型在图像生成方面的研究(diffusion models for "
-                "image generation)，帮我找几篇相关的工作看看。"
+                "I want to learn about diffusion models for image generation. "
+                "Help me find a few relevant works to look at."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "强化学习(reinforcement learning)这块最近有什么新进展？"
-                "帮我看看这个领域最新发表的几篇论文。"
+                "What recent progress has there been in reinforcement learning? "
+                "Help me check out a few of the latest papers published in this field."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "帮我关注一下向量数据库与近似最近邻检索(vector database and "
-                "approximate nearest neighbor search)方向最新出来的论文。"
+                "Help me keep an eye on the latest papers coming out on vector "
+                "databases and approximate nearest neighbor search."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "我想找几篇讲“检索增强生成 (retrieval augmented generation)”的"
-                "代表性论文，帮我按这个主题搜一下。"
+                "I want to find a few representative papers on retrieval augmented "
+                "generation. Help me search by this topic."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "帮我按“混合专家模型 (mixture of experts)”这个关键词找几篇论文。"
+                "Help me find a few papers by the keyword 'mixture of experts'."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "我想了解 Yoshua Bengio 的研究，帮我梳理一下他的主要论文"
-                "和常见的合作者。"
+                "I want to learn about Yoshua Bengio's research. Help me put "
+                "together his main papers and his frequent collaborators."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "帮我看看 Geoffrey Hinton 都发过哪些有影响力的论文，"
-                "以及他经常和谁合作。"
+                "Help me check which influential papers Geoffrey Hinton has "
+                "published, and who he often collaborates with."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "有个 arXiv 编号是 1706.03762，帮我查一下这篇论文讲的是什么。"
+                "There's an arXiv ID 1706.03762. Help me look up what this paper is about."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "帮我查一下 arXiv 1810.04805 这篇论文的题目和摘要。"
+                "Help me look up the title and abstract of arXiv 1810.04805."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "有一篇论文叫《Attention Is All You Need》，帮我找到它并给出详细信息。"
+                "There's a paper titled 'Attention Is All You Need'. Help me find it and give detailed information."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "帮我找一下标题是《Deep Residual Learning for Image Recognition》"
-                "的那篇论文。"
+                "Help me find the paper titled 'Deep Residual Learning for Image Recognition'."
             ),
         },
         {
             "name": "agent-network-marble-research",
             "type": "SIMPLE",
             "prompt": (
-                "帮我把 https://arxiv.org/abs/1706.03762 这个页面读一下，"
-                "正文和基本信息整理出来给我。"
+                "Help me read the page at https://arxiv.org/abs/1706.03762, "
+                "and organize the body text and basic information for me."
             ),
         },
 
-        # ================================================================
-        # MARBLE Web: 网页抓取、正文清洗、请求级缓存
-        # 能力面: fetch_webpage
-        # ================================================================
+        # Web tasks.
         {
             "name": "agent-network-marble-web",
             "type": "SIMPLE",
             "prompt": (
-                "帮我把 https://www.python.org/about/ 这个页面的正文抓下来，"
-                "去掉杂七杂八的东西，只留干净的内容。"
+                "Help me fetch the body text of the page https://www.python.org/about/, "
+                "strip out the clutter, and keep only the clean content."
             ),
         },
         {
             "name": "agent-network-marble-web",
             "type": "SIMPLE",
             "prompt": (
-                "帮我读一下 RFC 9110 这份规范，网址是 "
-                "https://www.rfc-editor.org/rfc/rfc9110，把主要内容提取出来。"
+                "Help me read the RFC 9110 spec, the URL is "
+                "https://www.rfc-editor.org/rfc/rfc9110, and extract the main content."
             ),
         },
         {
             "name": "agent-network-marble-web",
             "type": "SIMPLE",
             "prompt": (
-                "https://en.wikipedia.org/wiki/Multi-agent_system 这个维基页面"
-                "大概讲了什么？帮我抓下正文看看。"
+                "What is the wiki page https://en.wikipedia.org/wiki/Multi-agent_system "
+                "roughly about? Help me fetch the body text and take a look."
             ),
         },
         {
             "name": "agent-network-marble-web",
             "type": "SIMPLE",
             "prompt": (
-                "帮我把 https://httpbin.org/html 这个测试页面的内容取下来。"
+                "Help me fetch the content of the test page https://httpbin.org/html."
             ),
         },
         {
             "name": "agent-network-marble-web",
             "type": "SIMPLE",
             "prompt": (
-                "我想看看 https://fastapi.tiangolo.com/ 首页介绍了些什么，"
-                "帮我抓一下正文。"
+                "I want to see what the homepage https://fastapi.tiangolo.com/ introduces. "
+                "Help me fetch the body text."
             ),
         },
         {
             "name": "agent-network-marble-web",
             "type": "SIMPLE",
             "prompt": (
-                "帮我抓取 https://docs.python.org/3/whatsnew/3.12.html 这个页面，"
-                "总结下里面的更新点。"
+                "Help me fetch the page https://docs.python.org/3/whatsnew/3.12.html "
+                "and summarize the update points in it."
             ),
         },
 
-        # ================================================================
-        # MARBLE Coding: coder / reviewer / debugger / tester / analyst
-        # 能力面: create_solution / give_advice_and_revise / analyze_task /
-        #        assign_roles / decompose_task / create_file / read_solution
-        # (执行类 run_and_debug/run_tests/create_sandbox 依赖
-        #  ALLOW_CODE_EXECUTION，生产可能关闭，这里不主动触发)
-        # ================================================================
+        # Coding tasks avoid execution tools controlled by ALLOW_CODE_EXECUTION.
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "用 Python 帮我写一个稳定的归并排序，要能正确处理有重复元素的列表，"
-                "存成 merge_sort.py，已有同名文件就覆盖。"
+                "Help me write a stable merge sort in Python that correctly handles "
+                "lists with duplicate elements. Save it as merge_sort.py, overwriting "
+                "any existing file with the same name."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "帮我实现一个线程安全、支持过期时间(TTL)的 LRU 缓存，"
-                "写到 ttl_cache.py 里，可以覆盖旧文件。"
+                "Help me implement a thread-safe LRU cache with TTL support, "
+                "write it to ttl_cache.py, and feel free to overwrite the old file."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "帮我用 Python 写个函数，判断一个字符串是不是有效的括号匹配，"
-                "保存为 valid_parentheses.py。"
+                "Help me write a Python function that checks whether a string is "
+                "valid parentheses matching, and save it as valid_parentheses.py."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "我想给一个异步 HTTP 客户端加上指数退避重试和熔断机制，"
-                "帮我分析一下这个任务的复杂度、主要方向和潜在风险。"
+                "I want to add exponential-backoff retries and a circuit breaker to an "
+                "async HTTP client. Help me analyze the complexity, main directions, "
+                "and potential risks of this task."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "帮我评估下“把一个同步爬虫改造成基于 asyncio 的并发版本”"
-                "这件事难在哪、要注意什么。"
+                "Help me assess 'converting a synchronous crawler into an asyncio-based "
+                "concurrent version' — what's hard about it and what should I watch out for."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "我要开发一个带鉴权、缓存和审计日志的 REST API，"
-                "帮我把它拆成可执行的子任务，分别交给 coder、reviewer、tester 三种角色。"
+                "I want to develop a REST API with authentication, caching, and audit "
+                "logging. Help me break it into executable subtasks and assign them to "
+                "the three roles coder, reviewer, and tester respectively."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "现在有一个 Python 数据清洗工具要做，可用的人手有 coder、reviewer、"
-                "debugger、tester、analyst，帮我安排一下谁负责哪部分。"
+                "There's a Python data-cleaning tool to build, and the available staff "
+                "are coder, reviewer, debugger, tester, and analyst. Help me arrange "
+                "who is responsible for which part."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "帮我评审并改进一下 merge_sort.py 里的归并排序，"
-                "重点看空列表、重复元素和排序稳定性这几点。"
+                "Help me review and improve the merge sort in merge_sort.py, focusing "
+                "on empty lists, duplicate elements, and sort stability."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "在工作区里新建一个 notes.txt，内容写上：MARBLEBench load test artifact。"
+                "Create a new notes.txt in the workspace with the content: MARBLEBench load test artifact."
             ),
         },
         {
             "name": "agent-network-marble-coding",
             "type": "SIMPLE",
             "prompt": (
-                "把工作区里那份 merge_sort.py 的代码读出来给我看看。"
+                "Read out the code of that merge_sort.py in the workspace and show it to me."
             ),
         },
 
-        # ================================================================
-        # MARBLE Database: 基于 ReAct 的只读 MySQL 自然语言查询 + 健康检查
-        # 能力面: react_query / health
-        # ================================================================
+        # Database tasks.
         {
             "name": "agent-network-marble-database",
             "type": "SIMPLE",
             "prompt": (
-                "帮我看看数据库里都有哪些表，每张表大概是干什么用的。"
+                "Help me see what tables are in the database and roughly what each table is used for."
             ),
         },
         {
             "name": "agent-network-marble-database",
             "type": "SIMPLE",
             "prompt": (
-                "先弄清楚数据库的结构，再统计一下每张业务表里有多少条记录。"
+                "First figure out the structure of the database, then count how many records are in each business table."
             ),
         },
         {
             "name": "agent-network-marble-database",
             "type": "SIMPLE",
             "prompt": (
-                "数据库里哪些表带时间字段？帮我按表看看各自最新几条记录的时间范围。"
+                "Which tables in the database have time fields? Help me check, per table, "
+                "the time range of the latest few records."
             ),
         },
         {
             "name": "agent-network-marble-database",
             "type": "SIMPLE",
             "prompt": (
-                "帮我梳理一下各张表的主键、索引和可能的关联字段，"
-                "给我一个简短的数据模型概览。"
+                "Help me sort out the primary keys, indexes, and possible relation fields "
+                "of each table, and give me a short data-model overview."
             ),
         },
         {
             "name": "agent-network-marble-database",
             "type": "SIMPLE",
             "prompt": (
-                "帮我找出记录数最多的那几张表，说说它们大致存的是什么数据。"
+                "Help me find the few tables with the most records and tell me roughly what data they store."
             ),
         },
         {
             "name": "agent-network-marble-database",
             "type": "SIMPLE",
-            "prompt": "帮我确认一下数据库现在连得上、是不是健康的。",
+            "prompt": "Help me confirm that the database is currently reachable and healthy.",
         },
 
-        # ================================================================
-        # MARBLE World: 二手车谈判(无状态动作)
-        # 能力面: offer_price / reject_and_counter / accept_offer /
-        #        provide_information / inquire_intentions / end_negotiation
-        # ================================================================
+        # Negotiation tasks.
         {
             "name": "agent-network-marble-world",
             "type": "SIMPLE",
             "prompt": (
-                "我是买家，想买这台二手车，参考了同配置车近期的成交价，"
-                "打算出价 12000，帮我把这个报价给出去。"
+                "I'm the buyer and I want to buy this used car. Having referenced recent "
+                "transaction prices of similarly configured cars, I plan to offer 12000. "
+                "Help me put this offer out."
             ),
         },
         {
             "name": "agent-network-marble-world",
             "type": "SIMPLE",
             "prompt": (
-                "我是卖家，觉得买家现在的报价太低了，不能接受，"
-                "车况好、里程也低，我还价 13800。"
+                "I'm the seller and I think the buyer's current offer is too low to accept. "
+                "The car is in good condition and low mileage, so I counter at 13800."
             ),
         },
         {
             "name": "agent-network-marble-world",
             "type": "SIMPLE",
-            "prompt": "我是买家，对方这个报价我可以接受，就这么成交吧。",
+            "prompt": "I'm the buyer, I can accept the other party's offer, let's close the deal.",
         },
         {
             "name": "agent-network-marble-world",
             "type": "SIMPLE",
             "prompt": (
-                "我是卖家，跟买家说明一下车辆历史：没出过大事故，"
-                "每年都在授权门店保养。"
-            ),
-        },
-        {
-            "name": "agent-network-marble-world",
-            "type": "SIMPLE",
-            "prompt": (
-                "我是买家，想问问卖家：如果今天就能定下来，价格还能再让多少？"
+                "I'm the seller. Explain the vehicle history to the buyer: no major "
+                "accidents, serviced at an authorized dealer every year."
             ),
         },
         {
             "name": "agent-network-marble-world",
             "type": "SIMPLE",
             "prompt": (
-                "我是卖家，跟买家提供一下市场行情：同款车最近几笔成交价在 13000 上下。"
+                "I'm the buyer and I want to ask the seller: if we can settle today, how much more can you come down on the price?"
             ),
         },
         {
             "name": "agent-network-marble-world",
             "type": "SIMPLE",
-            "prompt": "我是卖家，这轮聊不拢，先结束这次谈判吧。",
+            "prompt": (
+                "I'm the seller. Provide the buyer with market conditions: recent deals on the same model are around 13000."
+            ),
+        },
+        {
+            "name": "agent-network-marble-world",
+            "type": "SIMPLE",
+            "prompt": "I'm the seller, we can't reach agreement this round, let's end this negotiation for now.",
         },
 
-        # ================================================================
-        # MARBLE Minecraft: 环境查询 + 控制器动作
-        # 能力面: get_environment_info / scanNearbyEntities / navigateTo /
-        #        MineBlock / placeBlock / equipItem / handoverBlock /
-        #        withdrawItem / erectDirtLadder / dismantleDirtLadder /
-        #        fetchContainerContents
-        # ================================================================
+        # Minecraft tasks.
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
             "prompt": (
-                "帮我看看玩家 player1 现在的情况——时间、天气、所在位置、"
-                "生命值、饥饿值还有背包里都有什么。"
+                "Help me check the current status of player player1 — time, weather, "
+                "location, health, hunger, and what's in the inventory."
             ),
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
             "prompt": (
-                "让 player1 在附近 10 格范围内找找橡木原木(Oak Log)，最多找 3 个。"
+                "Have player1 look for Oak Log within a 10-block range nearby, up to 3 of them."
             ),
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 走到坐标 x=1、y=64、z=1 那个位置。",
+            "prompt": "Have player1 walk to the position at coordinates x=1, y=64, z=1.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 把坐标 x=2、y=63、z=2 处的方块挖掉。",
+            "prompt": "Have player1 mine the block at coordinates x=2, y=63, z=2.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 在坐标 x=2、y=64、z=2 处放一块泥土(dirt)。",
+            "prompt": "Have player1 place a dirt block at coordinates x=2, y=64, z=2.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 把木镐(wooden pickaxe)拿到手上装备好。",
+            "prompt": "Have player1 take the wooden pickaxe in hand and equip it.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 把 1 个泥土(dirt)交给玩家 bob。",
+            "prompt": "Have player1 hand over 1 dirt to player bob.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 从箱子(chest)里取出 1 个铁锭(iron ingot)。",
+            "prompt": "Have player1 withdraw 1 iron ingot from the chest.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 搭一条通往顶部坐标 x=4、y=68、z=4 的泥土梯。",
+            "prompt": "Have player1 build a dirt ladder up to the top coordinates x=4, y=68, z=4.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "让 player1 把通往顶部坐标 x=4、y=68、z=4 的那条泥土梯拆掉。",
+            "prompt": "Have player1 dismantle that dirt ladder leading up to the top coordinates x=4, y=68, z=4.",
         },
         {
             "name": "agent-network-marble-minecraft",
             "type": "SIMPLE",
-            "prompt": "帮我看看 player1 自己背包(inventory)里现在都有些什么东西。",
+            "prompt": "Help me check what's currently in player1's own inventory.",
         },
 
-        # ================================================================
-        # MARBLE Werewolf: 狼人杀角色事件决策
-        # 能力面: decide_action / speak / vote / kill
-        # ================================================================
+        # Werewolf tasks.
         {
             "name": "agent-network-marble-werewolf",
             "type": "SIMPLE",
             "prompt": (
-                "我在玩狼人杀，我的身份是预言家。现在是第一晚要查验一名玩家，"
-                "场上活着的有 player_1、player_2、player_3、player_4，我还没查过任何人，"
-                "我想优先查发言有矛盾的人，帮我决定今晚查谁。"
+                "I'm playing Werewolf and my role is the Seer. It's now the first night "
+                "and I need to inspect a player. The players still alive are player_1, "
+                "player_2, player_3, player_4, and I haven't inspected anyone yet. I want "
+                "to prioritize whoever has contradictions in their statements — help me decide who to inspect tonight."
             ),
         },
         {
             "name": "agent-network-marble-werewolf",
             "type": "SIMPLE",
             "prompt": (
-                "我是村民，现在是第二天白天讨论环节，昨晚 player_5 出局了，"
-                "帮我基于目前公开的信息组织一段谨慎点的发言，重点关注 player_1、"
-                "player_2、player_3。"
+                "I'm a Villager. It's now the day-two discussion phase and player_5 was "
+                "eliminated last night. Help me compose a cautious statement based on the "
+                "currently public information, focusing on player_1, player_2, and player_3."
             ),
         },
         {
             "name": "agent-network-marble-werewolf",
             "type": "SIMPLE",
             "prompt": (
-                "我是村民，到白天投票了，我比较怀疑 player_2，其次是 player_3，"
-                "帮我在这两个人里决定投谁出局。"
+                "I'm a Villager and it's the daytime vote. I'm fairly suspicious of "
+                "player_2, then player_3. Help me decide which of these two to vote out."
             ),
         },
         {
             "name": "agent-network-marble-werewolf",
             "type": "SIMPLE",
             "prompt": (
-                "我是狼人，队友是 player_4。今晚要动手，场上还活着 player_1、"
-                "player_2、player_3，我想优先干掉最可能是预言家的那个，帮我决定刀谁。"
+                "I'm a Werewolf and my teammate is player_4. We're acting tonight, and "
+                "still alive are player_1, player_2, player_3. I want to prioritize killing "
+                "the one most likely to be the Seer — help me decide who to kill."
             ),
         },
         {
             "name": "agent-network-marble-werewolf",
             "type": "SIMPLE",
             "prompt": (
-                "我是女巫，现在第一晚，解药和毒药都还在手上，今晚 player_3 被刀了，"
-                "帮我决定要不要用药、怎么用。"
+                "I'm the Witch. It's the first night and I still have both the antidote "
+                "and the poison in hand. player_3 was killed tonight — help me decide "
+                "whether and how to use my potions."
             ),
         },
 
-        # ================================================================
-        # 跨智能体任务: 更长的调用链，用于观察故障传播
-        # ================================================================
+        # Cross-agent call chains.
         {
             "name": "marble-combo-web-research",
             "type": "COMPLEX",
@@ -521,8 +498,8 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-research",
             ],
             "prompt": (
-                "先帮我把 https://arxiv.org/abs/1706.03762 这篇论文的网页正文取下来，"
-                "再根据里面讲的主题去找 5 篇相关的论文。"
+                "First help me fetch the webpage body text of the paper at "
+                "https://arxiv.org/abs/1706.03762, then find 5 related papers based on the topic it discusses."
             ),
         },
         {
@@ -533,8 +510,9 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-coding",
             ],
             "prompt": (
-                "先帮我找几篇讲 LRU 缓存的资料，然后照着这些思路用 Python 实现一个"
-                "带 TTL 的 LRU 缓存，存成 researched_cache.py，可以覆盖旧文件。"
+                "First help me find a few resources about LRU caches, then following "
+                "those ideas implement a TTL-enabled LRU cache in Python, saving it as "
+                "researched_cache.py, and feel free to overwrite the old file."
             ),
         },
         {
@@ -545,8 +523,9 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-coding",
             ],
             "prompt": (
-                "先只读地看看数据库的表和索引大概什么样，"
-                "再帮我分析下这些表可能需要哪些查询优化，别改动任何数据。"
+                "First take a read-only look at roughly what the database's tables and "
+                "indexes look like, then help me analyze what query optimizations these "
+                "tables might need, without modifying any data."
             ),
         },
         {
@@ -557,8 +536,8 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-world",
             ],
             "prompt": (
-                "先帮我找几篇讲自动谈判策略(automated negotiation strategy)的"
-                "论文，然后我以买家身份出价 12000，报价理由就参考这些策略。"
+                "First help me find a few papers on automated negotiation strategy, then "
+                "I'll offer 12000 as the buyer, with the reasoning for the offer drawing on those strategies."
             ),
         },
         {
@@ -569,8 +548,8 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-werewolf",
             ],
             "prompt": (
-                "先帮我找些社交推理游戏(social deduction game)决策方面的论文，"
-                "然后我作为村民，在白天讨论里定一个发言策略。"
+                "First help me find some papers on decision-making in social deduction "
+                "games, then, as a Villager, set a speaking strategy for the daytime discussion."
             ),
         },
         {
@@ -581,9 +560,9 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-coding",
             ],
             "prompt": (
-                "先帮我抓取 https://httpbin.org/html 这个页面，"
-                "再分析一下要做一个健壮的 HTML 正文抽取器该怎么设计，"
-                "解析、编码和异常处理这些点都要考虑到。"
+                "First help me fetch the page https://httpbin.org/html, then analyze how "
+                "to design a robust HTML body-text extractor, taking parsing, encoding, "
+                "and exception handling into account."
             ),
         },
         {
@@ -595,10 +574,10 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-coding",
             ],
             "prompt": (
-                "第一步帮我找到《Attention Is All You Need》这篇论文，"
-                "第二步把它的论文页面抓下来，"
-                "第三步把“复现论文里的核心注意力模块”这个目标拆成可执行的子任务，"
-                "分别交给 coder、reviewer、tester。"
+                "Step 1: help me find the paper 'Attention Is All You Need'; "
+                "Step 2: fetch its paper page; "
+                "Step 3: break the goal of 'reproducing the core attention module in the "
+                "paper' into executable subtasks, assigned to coder, reviewer, and tester respectively."
             ),
         },
         {
@@ -610,9 +589,10 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-world",
             ],
             "prompt": (
-                "第一步只读地查一下各张数据表大概多大规模，"
-                "第二步评估下“生成一份报价摘要”这个功能实现起来有多复杂，"
-                "第三步我以买家身份出价 10000，理由就基于前面的数据分析。"
+                "Step 1: read-only, check roughly how large each data table is; "
+                "Step 2: assess how complex it would be to implement a 'generate an offer "
+                "summary' feature; "
+                "Step 3: as the buyer, I offer 10000, with the reasoning based on the earlier data analysis."
             ),
         },
         {
@@ -623,9 +603,9 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-minecraft",
             ],
             "prompt": (
-                "先帮我找几篇 Minecraft 早期资源采集策略(early-game resource "
-                "gathering in Minecraft)相关的资料，然后让玩家 player1 在附近 12 格"
-                "范围内找找橡木原木(Oak Log)，最多找 3 个。"
+                "First help me find a few resources on early-game resource gathering in "
+                "Minecraft, then have player player1 look for Oak Log within a 12-block "
+                "range nearby, up to 3 of them."
             ),
         },
         {
@@ -636,8 +616,8 @@ class MARBLEBenchUser(HttpUser):
                 "agent-network-marble-coding",
             ],
             "prompt": (
-                "先看看玩家 player1 当前的环境和背包情况，"
-                "再分析一下怎么根据这些状态做一个安全的资源采集决策器。"
+                "First check player player1's current environment and inventory, then "
+                "analyze how to build a safe resource-gathering decision maker based on these states."
             ),
         },
     ]
