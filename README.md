@@ -89,7 +89,7 @@ python3.10 -m venv .venv
 ./.venv/bin/python -m pip install -r requirements.txt
 ```
 
-Data: [MDOC/MAR](https://huggingface.co/datasets/Zhuyuhan2333/MicroARCL) → `data/MDOC/`, `data/MARBLEBench/`; [RCAEval](https://github.com/phamquiluan/RCAEval) → `data/RCAEval/`. Dataset names: `MAR` = `MARBLEBench`; `SS`/`OB`/`TT` = `re2ss`/`re2ob`/`re2tt`.
+Data: `MDOC`,`MAR` → `data/MDOC/`, `data/MARBLEBench/`; `RCAEval` → `data/RCAEval/`. Dataset names: `MDOC` = `MDOC`; `MAR` = `MARBLEBench`; `SS`/`OB`/`TT` = `re2ss`/`re2ob`/`re2tt`.
 
 ### RQ1 Scripts
 
