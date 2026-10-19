@@ -137,18 +137,11 @@ def fixed_residual(ns_dir, sev, start, end, lag, include_self=False):
     return resid
 
 
-# ---------------------------- GNN residual ----------------------------
 class NormalGNN(nn.Module):
-    """pred_s(t) = sum_j alpha_sj (W x_j(t)); alpha learned over neighbors,
-    W optional cross-component relation (identity if use_W=False)."""
-
     def __init__(self, adj_mask, C, use_W=False, prior_bias=None):
         super().__init__()
         self.mask = adj_mask
         self.raw = nn.Parameter(torch.zeros_like(adj_mask))
-        # fixed per-edge prior (log edge strength: call frequency + lead-lag
-        # confidence). Added to the learned logits so attention is REFINED on
-        # top of the prior instead of starting uniform; zero = no prior.
         self.bias = prior_bias if prior_bias is not None \
             else torch.zeros_like(adj_mask)
         self.W = nn.Linear(C, C, bias=False) if use_W else None
@@ -206,7 +199,7 @@ def gnn_residual(ns_dir, sev, start, end, lag, use_W=False, epochs=200,
         if a in idx and b in idx:
             A[idx[a], idx[b]] = 1
             A[idx[b], idx[a]] = 1
-    if include_self:                            # self-loop in the aggregation
+    if include_self:
         A += torch.eye(N)
     model = NormalGNN(A, C, use_W=use_W)
     opt = torch.optim.Adam(model.parameters(), lr=0.05)
@@ -218,31 +211,20 @@ def gnn_residual(ns_dir, sev, start, end, lag, use_W=False, epochs=200,
         opt.step()
     with torch.no_grad():
         gap = X - model(X)
-        resid = gap[abn].mean(0) - gap[normal].mean(0)      # [N,C]
-        resid = torch.clamp(resid, min=0.0)                 # larger = more anomalous -> keep positive
+        resid = gap[abn].mean(0) - gap[normal].mean(0)
+        resid = torch.clamp(resid, min=0.0)
         comp = torch.tensor(COMP_W[:C])
         Rvec = (resid * comp).sum(1)
     return {s: float(Rvec[idx[s]]) for s in svcs}
 
 
-# ---------------------- heterogeneous (svc/pod/node) GNN residual ----------
 def _chain_depth(ns_dir, cfg, sev):
-    """Per-service chain-propagation depth (0=entry/upstream, larger=deeper
-    downstream) from compute_chain_lags. Used to ORIENT the reconstruction
-    edges (downstream is predicted from upstream), i.e. chain-lag enters the
-    model as message-passing direction instead of a post-hoc penalty."""
     from lag_align import compute_chain_lags
     cl = compute_chain_lags(os.path.join(ns_dir, 'metrics'), ns_dir, cfg)
     return {s: float(cl.get((s, 'cpu'), 0)) for s in sev}
 
 
 def _lead_lag(xi, xj, tau_max, min_corr):
-    """Lead-lag between two deviation series over shifts [-tau_max, tau_max].
-    Returns (sign, strength): sign = +1 if i leads j (i upstream), -1 if j leads
-    i, 0 if ambiguous; strength = |peak corr| in [0,1] (0 when ambiguous).
-    corr(xi[t], xj[t+s]) peaking at s>0 means i's fluctuation precedes j's -> i
-    is upstream. Computed on the observed deviations, so a fault's onset
-    ordering orients the edge without the cumulative QPS/trace chain-depth."""
     n = min(len(xi), len(xj))
     xi, xj = xi[:n], xj[:n]
     best_c, best_s = 0.0, 0
@@ -263,9 +245,6 @@ def _lead_lag_sign(xi, xj, tau_max, min_corr):
 
 
 def _call_freq(ns_dir):
-    """Undirected svc-pair call frequency (# folded trace transitions) from the
-    execution-graph routes. Used as edge strength: a high-traffic call path
-    propagates more, so a downstream victim on it is more explainable."""
     import json
     from graph_utils import _read_services
     from execution_graph import group_to_service
@@ -300,17 +279,6 @@ def _call_freq(ns_dir):
 
 def mrgnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0,
                    standardize=False):
-    """Multi-relational weight-free fusion. Same skeleton as lag_gnn_residual
-    (severity = node input, residual = sole output, one reconstruction loss on
-    the normal segment), but each reconstruction edge carries a PRIOR STRENGTH
-    combining two relations:
-        * call frequency  (topology, R1) -> log(freq) additive bias, and
-        * lead-lag confidence (chain-lag, R2) -> |corr| additive bias.
-    Edges are oriented by lead-lag (fallback: chain depth, then caller->callee).
-    Attention is refined on top of this prior during normal-state training, so
-    chain-lag is a SOFT prior (fixing laggnn's hard 0/1 mis-orientation) and
-    frequency modulates how strongly a busy path explains its downstream. No
-    per-relation weights are tuned; the prior is a fixed log-strength bias."""
     svcs = list(sev.keys())
     packed = _build_tensor(ns_dir, svcs, start, end, lag)
     if packed is None:
@@ -341,8 +309,8 @@ def mrgnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0,
             da, db = depth.get(a, 0.0), depth.get(b, 0.0)
             u, d = (a, b) if da <= db else (b, a)
         A[idx[d], idx[u]] = 1
-        fnorm = freq.get(frozenset((a, b)), 1) / fmax        # R1 topology
-        bias[idx[d], idx[u]] = float(np.log(fnorm + 1e-3)) + conf  # + R2 lag
+        fnorm = freq.get(frozenset((a, b)), 1) / fmax
+        bias[idx[d], idx[u]] = float(np.log(fnorm + 1e-3)) + conf
     model = NormalGNN(A, C, use_W=False, prior_bias=bias)
     opt = torch.optim.Adam(model.parameters(), lr=0.05)
     Xn = X[normal]
@@ -354,13 +322,6 @@ def mrgnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0,
     with torch.no_grad():
         gap = X - model(X)
         if standardize:
-            # Standardize the abnormal-window residual by each node's OWN
-            # normal-state reconstruction-error volatility. A node that is
-            # intrinsically hard to reconstruct (bursty downstream generators
-            # like word-gen/image-gen) has a large normal std, so its abnormal
-            # jump is divided down -> no false positive; a true root cause has a
-            # small, stable normal residual, so its abnormal jump stands out.
-            # Parameter-free replacement for the old -mu*chain_lag sink penalty.
             sd = gap[normal].std(0) + 1e-6
             resid = (gap[abn].mean(0) - gap[normal].mean(0)) / sd
         else:
@@ -371,24 +332,6 @@ def mrgnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0,
 
 
 def lag_gnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0):
-    """Single unsupervised model that FUSES the three signals so the two
-    hand-tuned fusion weights (lam for residual, mu for chain-lag) disappear:
-
-      * severity  -> the GNN INPUT: X is each service's normalized deviation
-                     from its own normal-state baseline (the severity signal).
-      * chain-lag -> the message-passing DIRECTION: every call edge is oriented
-                     so a downstream service is reconstructed ONLY from its
-                     upstream causes (upstream = smaller chain depth). An
-                     upstream root cause therefore has no predictor and keeps
-                     its full deviation; a downstream victim whose deviation is
-                     explained by its anomalous upstream is reconstructed away
-                     (common-mode rejection, formerly the -mu*lag_pen term).
-      * residual  -> the OUTPUT: the abnormal-window reconstruction gap, which
-                     is the sole root-cause score. No lam/mu.
-
-    Only architectural/training knobs (epochs, lr) remain, and they are fit on
-    the NORMAL segment alone, so nothing is tuned against the evaluation faults.
-    """
     svcs = list(sev.keys())
     packed = _build_tensor(ns_dir, svcs, start, end, lag)
     if packed is None:
@@ -399,14 +342,8 @@ def lag_gnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0):
     depth = _chain_depth(ns_dir, cfg, sev)
     edges = build_svc_call_edges(ns_dir, _read_services(
         os.path.join(ns_dir, 'metrics')))
-    # directed reconstruction mask: mask[d, u] = 1 means upstream u predicts
-    # downstream d. Orient each call edge by the DATA-DRIVEN lead-lag of the two
-    # deviation series (who fluctuates first = upstream). Fall back to chain
-    # depth, then caller->callee, only when the lead-lag is ambiguous. This
-    # avoids the cumulative QPS/trace chain-depth estimate that mis-orients
-    # net-latency faults.
     Xnp = X.numpy()
-    series = {s: Xnp[:, idx[s], :].sum(axis=1) for s in svcs}   # per-svc dev
+    series = {s: Xnp[:, idx[s], :].sum(axis=1) for s in svcs}
     tau_max = int(getattr(cfg, 'lag_tau_max', 12))
     min_corr = float(getattr(cfg, 'lag_min_corr', 0.3))
     A = torch.zeros(N, N)
@@ -418,10 +355,10 @@ def lag_gnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0):
             u, d = a, b
         elif sign < 0:
             u, d = b, a
-        else:                                       # ambiguous -> depth, then call dir
+        else:
             da, db = depth.get(a, 0.0), depth.get(b, 0.0)
             u, d = (a, b) if da <= db else (b, a)
-        A[idx[d], idx[u]] = 1                       # d reconstructed from u
+        A[idx[d], idx[u]] = 1
     model = NormalGNN(A, C, use_W=False)
     opt = torch.optim.Adam(model.parameters(), lr=0.05)
     Xn = X[normal]
@@ -439,8 +376,6 @@ def lag_gnn_residual(ns_dir, sev, start, end, lag, cfg, epochs=200, seed=0):
 
 
 def _dev_from(df, ts, normal, cols_map, idx, C):
-    """Build a [T, N, C] normalized-deviation tensor from `df` for the entities
-    in `idx`, each with up to C channel columns listed in cols_map."""
     dfx = df.set_index('timestamp')
     X = np.zeros((len(ts), len(idx), C), dtype=np.float32)
     for ent, cols in cols_map.items():
@@ -456,10 +391,6 @@ def _dev_from(df, ts, normal, cols_map, idx, C):
 
 
 class HeteroGNN(nn.Module):
-    """Predict each svc's dev from (a) its svc call neighbors (learned alpha)
-    and (b) the physical node it runs on (learned per-svc gate beta). No self
-    input -> residual = deviation unexplained by neighbors or host load."""
-
     def __init__(self, adj_svc, C):
         super().__init__()
         self.mask = adj_svc
@@ -473,14 +404,12 @@ class HeteroGNN(nn.Module):
         a = torch.softmax(torch.where(self.mask > 0, self.raw, neg), dim=1)
         a = a * (self.mask.sum(1, keepdim=True) > 0)
         svc_msg = torch.einsum('sj,tjc->tsc', a, self.Wsvc(Xsvc))
-        node_feat = self.Wnode(Xnode_pad)[:, node_idx, :]      # [T,Ns,C]
+        node_feat = self.Wnode(Xnode_pad)[:, node_idx, :]
         beta = torch.sigmoid(self.beta).view(1, -1, 1)
         return svc_msg + beta * node_feat
 
 
 def hgnn_residual(ns_dir, sev, start, end, lag, epochs=200, seed=0):
-    """Heterogeneous (svc + node) normal-state residual. svc self-fault =
-    deviation unexplained by svc call neighbors AND the host node's load."""
     import pandas as _pd
     from lag_align import _service_of_pod
     sample_dir = os.path.dirname(ns_dir)
@@ -498,7 +427,6 @@ def hgnn_residual(ns_dir, sev, start, end, lag, epochs=200, seed=0):
     C = len(CHAN)
     Xsvc = _dev_from(smdf, ts, normal,
                      {s: [f'{s}{suf}' for suf in CHAN] for s in svcs}, sidx, C)
-    # node deviations
     npath = os.path.join(sample_dir, 'node', 'node.csv')
     if not os.path.exists(npath):
         return {s: 0.0 for s in sev}
@@ -515,7 +443,6 @@ def hgnn_residual(ns_dir, sev, start, end, lag, epochs=200, seed=0):
     Xnode = _dev_from(ndf, ts, normal,
                       {n: [nodecols[n].get('cpu'), nodecols[n].get('memory')]
                        for n in nodes}, nidx, C)
-    # svc -> host node via graph.csv (pod->node) + pod->svc
     svc2node = {}
     gdf = _pd.read_csv(os.path.join(md, 'graph.csv'))
     for _, row in gdf.iterrows():
@@ -525,13 +452,12 @@ def hgnn_residual(ns_dir, sev, start, end, lag, epochs=200, seed=0):
             if sv in sidx and sv not in svc2node and dst in nidx:
                 svc2node[sv] = nidx[dst]
     Nn = len(nodes)
-    node_idx = torch.full((len(svcs),), Nn, dtype=torch.long)  # Nn = zero pad row
+    node_idx = torch.full((len(svcs),), Nn, dtype=torch.long)
     for s, i in sidx.items():
         if s in svc2node:
             node_idx[i] = svc2node[s]
     Xnode_pad = torch.cat(
         [Xnode, torch.zeros(Xnode.shape[0], 1, Xnode.shape[2])], dim=1)
-    # svc-svc adjacency
     edges = build_svc_call_edges(ns_dir, _read_services(md))
     A = torch.zeros(len(svcs), len(svcs))
     for a, b in edges:
@@ -571,11 +497,6 @@ def residual_order(ns_dir, sev, start, end, lag, kind='fix', k=3, lam=2.0,
                    include_self=False, mu=0.0, cfg=None, merge=None):
     """Service order after residual + optional chain-lag upstream penalty,
     reranked within severity top-k. mu>0 enables the chain-lag penalty.
-
-    kind='laggnn' is the weight-free fusion: severity (input), chain-lag (edge
-    direction) and residual (output) live in ONE unsupervised model, so the
-    severity top-k is reordered by the single fused residual alone -- lam and mu
-    are ignored (there is no additive combination left to weight).
 
     merge in {'rrf','avg'} collapses the two metric signals (severity+residual)
     into a parameter-free metric-evidence term and keeps ONLY the chain-lag

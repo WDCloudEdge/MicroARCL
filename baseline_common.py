@@ -18,8 +18,6 @@ from lag_align import (align_metrics_df, compute_service_lags,
 from util.utils import time_string_2_timestamp
 from ppr_localize import ppr_rank
 import residual_localize as RES
-from execution_graph import (load_execution_graphs, aggregate_topk_slices,
-                             build_log_evidence, graph_failed_for_services)
 
 
 # Root-cause service -> category for per-category breakdown.
@@ -238,10 +236,6 @@ def _run_direct(cfg, sample_dir, align, detector='severity', **_):
 
 
 def _residual_voter_z(cfg, ctx, services):
-    """GNN normal-state residual as an extra reliability voter. The per-service
-    residual (abnormal-window reconstruction gap) is robustly standardized
-    across services into a z >= 0, so it enters reliability_rrf on the same
-    'how much does this service stand out' scale as the telemetry voters."""
     import numpy as np
     resid = RES.mrgnn_residual(ctx['ns_dir'], {s: 0.0 for s in services},
                                ctx['start'], ctx['end'], ctx['lag_map'], cfg)
@@ -257,7 +251,7 @@ def _run_relrrf(cfg, sample_dir, align, detector='severity',
                 variant='both', k_rrf=60, include_residual=True,
                 signals=None, k=0, mu=0.0, fuse='rrf', **_):
     """Reliability-aware RRF fusion over the RAW per-signal voters (failure /
-    latency / cpu / mem / net / qps + GNN residual), so no weighted-sum metric
+    latency / cpu / mem / net / qps), so no weighted-sum metric
     term (severity's w_res/w_qps or the localizer's lam) survives. k=0 ranks ALL
     services; k>0 reorders the severity top-k. mu>0 additionally applies the
     separate temporal chain-lag penalty on top of the RRF metric evidence:
@@ -306,10 +300,6 @@ def _run_relrrf(cfg, sample_dir, align, detector='severity',
 
 def _run_residual(cfg, sample_dir, align, detector='severity',
                   kind='fix', k=3, lam=2.0, mu=0.0, merge=None, **_):
-    """Severity ranking enhanced by a normal-state topology residual (+ optional
-    chain-lag upstream penalty when mu>0), reranked within the severity top-k.
-    kind in {fix, gnnA, gnnW, hgnn}. merge in {rrf,avg} collapses severity+
-    residual into one parameter-free metric term, leaving mu the only weight."""
     t = {}
     d0 = time.perf_counter()
     ctx = _prep(cfg, sample_dir, align, detector)

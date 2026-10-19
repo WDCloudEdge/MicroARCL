@@ -176,7 +176,7 @@ def reliability_rrf(ns_dir: str, start, end, lag_map, variant: str = 'both',
                     return_scores: bool = False, fuse: str = 'rrf',
                     lat_percentile: str = 'p50'):
     """Rank services by reliability-weighted RRF over the telemetry voters (plus
-    any pre-computed extra voters in `extra_z`, e.g. the GNN residual).
+    any pre-computed extra voters in `extra_z`).
 
     candidates=None ranks ALL services (full localizer, can recover buried root
     causes). candidates=<list> restricts fusion to that set (severity top-k), so

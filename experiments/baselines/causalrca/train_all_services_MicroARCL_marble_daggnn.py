@@ -225,75 +225,6 @@ def run_daggnn(df):
 
 
 # ===================================
-# statistics (ACC@K / AVG@K / MRR, rank 0 = miss) -- same defs as baseline_common.py
-# reported for TOTAL, per group (single/multi), and per load
-# ===================================
-def write_summary(results, groups, out_root, method, dataset_desc, time_cost, maxk=10):
-    def topk_metrics(ranks):
-        n = len(ranks)
-        acc = [(sum(1 for r in ranks if 1 <= r <= k) / n if n else 0.0)
-               for k in range(1, maxk + 1)]
-        avg = [sum(acc[:k]) / k for k in range(1, maxk + 1)]
-        return acc, avg
-
-    def fmt_row(label, ranks):
-        acc, avg = topk_metrics(ranks)
-        mrr = (sum(1.0 / r for r in ranks if r >= 1) / len(ranks)) if ranks else 0.0
-        return '{:<26s}'.format(label) \
-            + ''.join('{:>8.3f}'.format(v) for v in acc) \
-            + ''.join('{:>8.3f}'.format(v) for v in avg) \
-            + '{:>8.3f}'.format(mrr) + '{:>5d}'.format(len(ranks))
-
-    # ordered-unique group and group/load keys (discovery order)
-    seen_g, seen_gl = [], []
-    for r in results:
-        if r['group'] not in seen_g:
-            seen_g.append(r['group'])
-        gl = (r['group'], r['load'])
-        if gl not in seen_gl:
-            seen_gl.append(gl)
-
-    all_ranks = [r['rank'] for r in results]
-    hits = sum(1 for r in all_ranks if r >= 1)
-
-    ts = datetime.now().strftime('%Y-%m-%d-%H.%M.%S')
-    summary_path = os.path.join(out_root, 'summary_' + ts + '.log')
-    lines = []
-    lines.append('=' * 120)
-    lines.append('SUMMARY (CausalRCA: ' + method + ')  dataset=' + dataset_desc)
-    lines.append('=' * 120)
-
-    # per-sample topK listing, grouped
-    lines.append('{:<60s}{:>8s}'.format('case', 'topK'))
-    for r in results:
-        lines.append('{:<60s}{:>8d}'.format(r['group'] + '/' + r['load'] + '/' + r['case'], r['rank']))
-    lines.append('-' * 120)
-
-    lines.append('Top-K ranking metrics (rank 0/missing = miss)')
-    header = '{:<26s}'.format('subset') \
-        + ''.join('{:>8s}'.format('ACC@%d' % k) for k in range(1, maxk + 1)) \
-        + ''.join('{:>8s}'.format('AVG@%d' % k) for k in range(1, maxk + 1)) \
-        + '{:>8s}'.format('MRR') + '{:>5s}'.format('n')
-    lines.append(header)
-    lines.append(fmt_row('TOTAL', all_ranks))
-    for g in seen_g:
-        gr = [r['rank'] for r in results if r['group'] == g]
-        lines.append(fmt_row('[' + g + ']', gr))
-    for (g, l) in seen_gl:
-        lr = [r['rank'] for r in results if r['group'] == g and r['load'] == l]
-        lines.append(fmt_row('  ' + g + '/' + l, lr))
-
-    lines.append('')
-    lines.append('Samples: {}  hits: {}  misses: {}'.format(len(all_ranks), hits, len(all_ranks) - hits))
-    lines.append('Time cost: {:.3f}s'.format(time_cost))
-    summary_text = '\n'.join(lines)
-    print(summary_text)
-    with open(summary_path, 'w') as f:
-        f.write(summary_text + '\n')
-    print('summary written: ' + summary_path)
-
-
-# ===================================
 # main
 # ===================================
 if __name__ == '__main__':
@@ -352,9 +283,6 @@ if __name__ == '__main__':
     abnormal_rel = 'data/MARBLEBench/abnormal'
     abnormal_dir = os.path.join(base_dir, abnormal_rel)
 
-    out_root = 'MicroARCL/MARBLEBench/instance_daggnn'
-    os.makedirs(out_root, exist_ok=True)
-
     groups = [g for g in sorted(os.listdir(abnormal_dir))
               if os.path.isdir(os.path.join(abnormal_dir, g))]
 
@@ -373,8 +301,6 @@ if __name__ == '__main__':
             if _LIMIT and len(results) >= _LIMIT:
                 break
             dataset_dir = os.path.join(group_dir, load)
-            out_dir = os.path.join(out_root, group, load)
-            os.makedirs(out_dir, exist_ok=True)
 
             root_cause_services = [f[:-len('_label.txt')]
                                    for f in sorted(os.listdir(dataset_dir))
@@ -414,9 +340,6 @@ if __name__ == '__main__':
                     rank = 0  # 0 = root cause not located (miss)
                     if not np.any(adj):
                         print(tag + ' is absent')
-                        with open(os.path.join(out_dir, case + '.log'), "w") as output_file:
-                            print('root cause: ' + simple.root_cause, file=output_file)
-                            print("topK: 0", file=output_file)
                         _record(rank)
                         continue
 
@@ -431,21 +354,15 @@ if __name__ == '__main__':
                         score_dict[name[i]] = s
                     sorted_scores = sorted(score_dict.items(), key=lambda item: item[1], reverse=True)
                     count = 0
-                    with open(os.path.join(out_dir, case + '.log'), "w") as output_file:
-                        print('root cause: ' + simple.root_cause, file=output_file)
-                        for sorted_score in sorted_scores:
-                            count += 1
-                            print(sorted_score, file=output_file)
-                            if service_of_column(sorted_score[0]) == simple.root_cause:
-                                rank = count
-                                break
-                        # topK: 0 when the root cause never appears in the ranking
-                        print("topK: " + str(rank), file=output_file)
+                    for sorted_score in sorted_scores:
+                        count += 1
+                        if service_of_column(sorted_score[0]) == simple.root_cause:
+                            rank = count
+                            break
                     _record(rank)
     time_cost = time.time() - begin_tt
     print('time cost:' + str(time_cost))
 
-    write_summary(results, groups, out_root, 'DAG-GNN + PageRank', abnormal_rel, time_cost)
     # uniform output/<dataset>/<method>/ log
     import sys as _s
     _s.path.append(os.path.dirname(os.path.dirname(os.path.dirname(

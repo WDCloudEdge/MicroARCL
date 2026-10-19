@@ -10,7 +10,7 @@ import networkx as nx
 import numpy as np
 from sknetwork.ranking import PageRank
 
-from rcaeval_common import iter_cases, load_case, service_of_column, write_summary
+from rcaeval_common import iter_cases, load_case, service_of_column
 
 # repo root (4 levels up) on sys.path so the shared results_log is importable;
 # appended (not inserted) so the vendored config.py/graph.py still win.
@@ -67,30 +67,6 @@ def rank_case(adjacency, nodes, columns, root_cause):
     return 0, ranking
 
 
-def case_log_path(root, system, fault, case):
-    return os.path.join(root, system, fault, case + '.log')
-
-
-def read_completed_rank(path):
-    if not os.path.isfile(path):
-        return None
-    with open(path) as f:
-        lines = f.read().splitlines()
-    if len(lines) >= 2 and lines[-1].startswith('topK: ') and lines[-2].startswith('time cost: '):
-        return int(lines[-1].split(': ', 1)[1]), float(lines[-2].split(': ', 1)[1].rstrip('s'))
-    return None
-
-
-def write_case(path, root_cause, ranking, rank, seconds):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w') as f:
-        print('root cause: ' + root_cause, file=f)
-        for item in ranking:
-            print(item, file=f)
-        print('time cost: {:.3f}s'.format(seconds), file=f)
-        print('topK: ' + str(rank), file=f)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--method', choices=('pc', 'daggnn'), required=True)
@@ -99,17 +75,9 @@ def main():
     parser.add_argument('--limit', type=int, help='Process at most this many cases')
     parser.add_argument('--shard', help='Run shard i/n (0-indexed), e.g. 0/2; splits '
                                         'cases by position so parallel runs stay disjoint')
-    parser.add_argument('--out-root', help='Output directory')
-    parser.add_argument('--no-resume', action='store_true', help='Recompute completed cases')
-    parser.add_argument('--summarize-only', action='store_true',
-                        help='Write a clearly marked summary of completed case logs')
     args = parser.parse_args()
 
-    method_label = 'PC + PageRank' if args.method == 'pc' else 'DAG-GNN + PageRank'
     discover = pc_adjacency if args.method == 'pc' else daggnn_adjacency
-    out_root = args.out_root or os.path.join('RCAEval', 're2',
-                                              'instance' if args.method == 'pc' else 'instance_daggnn')
-    os.makedirs(out_root, exist_ok=True)
     cases = [c for c in iter_cases() if args.system is None or c[1] in args.system]
     if args.limit is not None:
         cases = cases[:args.limit]
@@ -117,66 +85,18 @@ def main():
         shard_i, shard_n = (int(x) for x in args.shard.split('/'))
         cases = [c for idx, c in enumerate(cases) if idx % shard_n == shard_i]
     results = []
-    start = time.time()
-
-    if args.summarize_only:
-        for case, system, root_cause, fault in cases:
-            cached = read_completed_rank(case_log_path(out_root, system, fault, case))
-            if cached is None:
-                continue
-            rank, seconds = cached
-            results.append({'group': system, 'load': fault, 'case': case,
-                            'root_cause': root_cause, 'rank': rank, 'seconds': seconds})
-        for system in ('ob', 'ss', 'tt'):
-            subset = [r for r in results if r['group'] == system]
-            if subset:
-                write_summary(subset, [system], out_root, method_label,
-                              'PARTIAL RCAEval/re2' + system, time.time() - start,
-                              summary_prefix='summary_partial_' + system)
-        write_summary(results, ['ob', 'ss', 'tt'], out_root, method_label,
-                      'PARTIAL RCAEval/re2 ({} of {} cases)'.format(len(results), len(cases)),
-                      time.time() - start, summary_prefix='summary_partial')
-        return
-
-    current_system = None
-    system_start = start
-
     for number, (case, system, root_cause, fault) in enumerate(cases, 1):
-        if current_system is not None and system != current_system:
-            subset = [r for r in results if r['group'] == current_system]
-            write_summary(subset, [current_system], out_root, method_label,
-                          'RCAEval/re2' + current_system + ' (cpu, mem, latency-90; 10 min)',
-                          time.time() - system_start,
-                          summary_prefix='summary_' + current_system)
-            system_start = time.time()
-        current_system = system
         tag = system + '/' + fault + '/' + case
-        path = case_log_path(out_root, system, fault, case)
-        cached = None if args.no_resume else read_completed_rank(path)
-        if cached is None:
-            case_start = time.time()
-            data, columns = load_case(case)
-            if data is None:
-                raise ValueError('No usable metrics for ' + tag)
-            adjacency, nodes = discover(data)
-            rank, ranking = rank_case(adjacency, nodes, columns, root_cause)
-            seconds = time.time() - case_start
-            write_case(path, root_cause, ranking, rank, seconds)
-        else:
-            rank, seconds = cached
+        case_start = time.time()
+        data, columns = load_case(case)
+        if data is None:
+            raise ValueError('No usable metrics for ' + tag)
+        adjacency, nodes = discover(data)
+        rank, ranking = rank_case(adjacency, nodes, columns, root_cause)
+        seconds = time.time() - case_start
         results.append({'group': system, 'load': fault, 'case': case,
                         'root_cause': root_cause, 'rank': rank, 'seconds': seconds})
         print('[{}/{}] {} topK={} {:.3f}s'.format(number, len(cases), tag, rank, seconds), flush=True)
-
-    if current_system is not None:
-        subset = [r for r in results if r['group'] == current_system]
-        write_summary(subset, [current_system], out_root, method_label,
-                      'RCAEval/re2' + current_system + ' (cpu, mem, latency-90; 10 min)',
-                      time.time() - system_start,
-                      summary_prefix='summary_' + current_system)
-    elapsed = time.time() - start
-    write_summary(results, ['ob', 'ss', 'tt'], out_root, method_label,
-                  'RCAEval/re2 (cpu, mem, latency-90; 10 min)', elapsed)
 
     # uniform output/<dataset>/<method>/ logs (one per RE2 system)
     method_name = os.environ.get(
