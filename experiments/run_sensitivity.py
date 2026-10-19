@@ -13,7 +13,7 @@ PY = sys.executable
 AGENT = {'MDOC': ('MDOC', 15), 'MAR': ('MARBLEBench', 5)}
 ORDER = ['MDOC', 'MAR']
 K_GRID = (5, 10, 15, 20, 25)
-MU_GRID = (0.0, 0.25, 0.5, 0.75, 1.0)
+MU_GRID = (0.0, 0.5, 1.0, 1.5, 2.0)
 
 
 def _run(cmd):
