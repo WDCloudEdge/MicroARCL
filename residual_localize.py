@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-from agent_gnn import build_svc_call_edges, _read_services
+from graph_utils import build_svc_call_edges, _read_services
 from lag_align import align_metrics_df
 
 # metric channels with a pre-window normal segment (svc_metric); severity-like
@@ -267,7 +267,7 @@ def _call_freq(ns_dir):
     execution-graph routes. Used as edge strength: a high-traffic call path
     propagates more, so a downstream victim on it is more explainable."""
     import json
-    from agent_gnn import _read_services
+    from graph_utils import _read_services
     from execution_graph import group_to_service
     p = os.path.join(ns_dir, 'graph', 'call_chains.json')
     if not os.path.exists(p):

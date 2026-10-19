@@ -26,8 +26,8 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import re2_adapter as A
-from run_torai_agent import (detect_onset, adaptive_inject_time,
-                             CUTOFFS, _topk_metrics, _mrr)
+from torai_common import (detect_onset, adaptive_inject_time,
+                          CUTOFFS, _topk_metrics, _mrr)
 from RCAEval.e2e.torai import torai
 import results_log
 

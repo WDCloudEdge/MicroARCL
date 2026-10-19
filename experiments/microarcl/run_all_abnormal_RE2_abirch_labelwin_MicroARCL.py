@@ -18,36 +18,14 @@ import traceback
 from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime
 
-import pandas as pd
-
 from Config import Config
-from run_agent_rca import _service_rank
+from agent_rca import _service_rank
 from baseline_common import _run_relrrf
-from util.utils import time_string_2_timestamp
 import re2_adapter as A
 import results_log
-# reuse the shared discovery / summary / fault-category helpers
+# reuse the shared discovery / summary / fault-category / label-window helpers
 from experiments.microarcl.run_all_abnormal_RE2_birch_align_MicroARCL import (
-    NS, _summarize, _fault_cat, _resolve_root)
-
-
-def _data_span(metrics_dir):
-    """(first, last) unix seconds of the materialized timeline."""
-    ts = pd.read_csv(os.path.join(metrics_dir, 'success_rate.csv'),
-                     usecols=['timestamp'])['timestamp']
-    return (time_string_2_timestamp(str(ts.iloc[0])),
-            time_string_2_timestamp(str(ts.iloc[-1])))
-
-
-def _label_window(metrics_dir, inject_time, pre, post):
-    """[inject-pre, inject+post] clamped to the data span, as tz-naive UTC
-    Timestamps matching the CSV timeline."""
-    first, last = _data_span(metrics_dir)
-    start = max(first, inject_time - pre)
-    end = min(last, inject_time + post)
-    if start >= end:                                  # degenerate -> full span
-        start, end = first, last
-    return pd.to_datetime(start, unit='s'), pd.to_datetime(end, unit='s')
+    NS, _summarize, _fault_cat, _resolve_root, _label_window)
 
 
 def _run_batch(root, out_root, tag, pre, post, limit=None, suite=None,

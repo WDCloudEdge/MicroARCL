@@ -21,10 +21,10 @@ _DATASET = _pre.parse_known_args()[0].dataset
 os.environ['AGENT_DATASET'] = _DATASET
 
 from Config import Config                                         # noqa: E402
-from run_all_abnormal import parse_labels                          # noqa: E402
+from eval_utils import parse_labels                          # noqa: E402
 from baseline_common import _discover                              # noqa: E402
 from lag_align import compute_service_lags                         # noqa: E402
-from run_onset_propagation import (_service_onsets, _classify,     # noqa: E402
+from onset_propagation import (_service_onsets, _classify,     # noqa: E402
                                    _onset_floor)
 
 warnings.filterwarnings('ignore')

@@ -18,7 +18,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dataset', choices=('MDOC', 'MARBLEBench'), required=True)
     ap.add_argument('--method', default='relrrf',
-                    choices=('relrrf', 'ppr', 'direct', 'llm'))
+                    choices=('relrrf', 'ppr', 'direct'))
     ap.add_argument('--k', type=int, default=15)
     ap.add_argument('--mu', type=float, default=1.0)
     ap.add_argument('--detector', default='abirch',

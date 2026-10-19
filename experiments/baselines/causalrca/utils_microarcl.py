@@ -48,3 +48,14 @@ def time_string_2_timestamp(time_string):
     dt_object = datetime.strptime(time_string, '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.utc)
     # Use timestamp() to convert the datetime object to a timestamp
     return int(dt_object.timestamp())
+
+
+class Simple:
+    """Descriptor for one labeled fault case: [begin, end] window, label,
+    root-cause service, and the sample directory under the dataset root."""
+    def __init__(self, global_now_time, global_end_time, label, root_cause, dir):
+        self.global_now_time = global_now_time
+        self.global_end_time = global_end_time
+        self.label = label
+        self.root_cause = root_cause
+        self.dir = dir

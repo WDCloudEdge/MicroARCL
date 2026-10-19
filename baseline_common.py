@@ -9,8 +9,8 @@ import traceback
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
 
-import run_agent_rca as R
-from run_all_abnormal import TOP_K_CUTOFFS, parse_labels, _Tee, _topk_metrics
+import agent_rca as R
+from eval_utils import TOP_K_CUTOFFS, parse_labels, _Tee, _topk_metrics
 from Config import Config
 from anomaly_detection import get_anomaly_by_df
 from lag_align import (align_metrics_df, compute_service_lags,
@@ -20,7 +20,6 @@ from ppr_localize import ppr_rank
 import residual_localize as RES
 from execution_graph import (load_execution_graphs, aggregate_topk_slices,
                              build_log_evidence, graph_failed_for_services)
-# from llm_localize import llm_localize
 
 
 # Root-cause service -> category for per-category breakdown.
@@ -113,7 +112,7 @@ def _birch_ranking(cfg, sample_dir, metrics_dir, start_ts, end_ts, lag_map,
                  service actually served a request (qps>0);
       sparsity : (3) scale the score by 1-exp(-#request-bins/n0) so a
                  barely-used service is not over-trusted.
-    (1) adaptive window is inherent (start_ts/end_ts is Module B.0's window)."""
+    (1) adaptive window is inherent (start_ts/end_ts is the adaptive window)."""
     import pandas as pd
     services = [c for c in pd.read_csv(
         os.path.join(metrics_dir, 'success_rate.csv'), nrows=1).columns
@@ -303,41 +302,6 @@ def _run_relrrf(cfg, sample_dir, align, detector='severity',
     order = fused + sev_order[k:] if candidates is not None else fused
     t['localize'] = time.perf_counter() - d1
     return {'order': order, 'timing': t}
-
-
-# def _run_llm(cfg, sample_dir, align, detector='birch', **_):
-#     t = {}
-#     d0 = time.perf_counter()
-#     ctx = _prep(cfg, sample_dir, align, detector)
-#     t['detect'] = time.perf_counter() - d0
-#     ranking = ctx['ranking']
-#     topk = [s for s, _, _ in ranking[:cfg.llm_topk]]
-#     print(f'[{detector}] {len(ranking)} anomalous svc; feeding LLM top-k: {topk}')
-#     if not topk:
-#         return {'order': [], 'final_root_cause': '', 'timing': t}
-#     d1 = time.perf_counter()
-#     graphs = load_execution_graphs(ctx['ns_dir'], max_traces=None,
-#                                    candidate_services=topk)
-#     cap = getattr(cfg, 'exec_max_traces', 40)
-#     use_graphs = graphs[:cap] if cap and cap > 0 else graphs
-#     log_evidence = build_log_evidence(
-#         ctx['ns_dir'], topk, ctx['start'], ctx['end'], cfg,
-#         anomaly_type_union=['unknown'])
-#     candidate_metadata = {
-#         svc: {'selected_by': 'birch',
-#               'severity_rank': i, 'severity_score': round(float(sc), 4),
-#               'gnn_rank': None, 'gnn_score': None}
-#         for i, (svc, sc, _) in enumerate(ranking[:cfg.llm_topk], start=1)}
-#     agg = aggregate_topk_slices(
-#         topk, use_graphs, cfg, log_evidence=log_evidence,
-#         shared_over_services=topk, coarse_ranking=ranking,
-#         candidate_metadata=candidate_metadata, gnn_service_ranking=[],
-#         trace_analysis_graphs=graphs)
-#     result = llm_localize(agg, cfg)
-#     t['localize'] = time.perf_counter() - d1
-#     order = result.get('reranked_topk') or []
-#     return {'order': order, 'final_root_cause': str(result.get('root_cause') or ''),
-#             'timing': t}
 
 
 def _run_residual(cfg, sample_dir, align, detector='severity',

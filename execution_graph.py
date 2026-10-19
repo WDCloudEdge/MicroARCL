@@ -674,7 +674,7 @@ def aggregate_problem_trace_chains(
                   'failures within loaded candidate-related graphs'),
         'problem_trace_definition': (
             'task_status in {3, 8}, or a service vertex has an error signature; '
-            'the implicated scope intersects a Module-C top-k candidate'),
+            'the implicated scope intersects a top-k candidate'),
         'num_problem_traces': total,
         'traces': traces,
         'call_chain_frequencies': chain_frequencies,

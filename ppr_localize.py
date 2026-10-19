@@ -3,8 +3,8 @@ from typing import Dict, Optional, Tuple
 
 import networkx as nx
 
-# reuse identical graph construction + severity->node prior from the GNN path
-from agent_gnn import build_graphs, _build_node_severity
+# reuse identical graph construction + severity->node prior
+from graph_utils import build_graphs, _build_node_severity
 
 
 def window_graph(ns_dir: str, start_ts: int, end_ts: int) -> nx.DiGraph:
@@ -42,7 +42,7 @@ def ppr_rank(ns_dir: str, start_ts: int, end_ts: int,
     if g.number_of_nodes() == 0:
         return {}
 
-    # severity -> per-node prior (same mapping the GNN B.3 target uses)
+    # severity -> per-node prior (same severity->node mapping as build_graphs)
     node_sev = _build_node_severity({'window': g}, severity_map or {})
     # personalization must cover every node and sum to > 0
     pers = {n: max(0.0, float(node_sev.get(n, 0.0))) for n in g.nodes()}

@@ -5,7 +5,7 @@
 import time
 from utils_microarcl import *
 from typing import List
-from train_latency_MicroARCL_bookinfo import Simple
+from utils_microarcl import Simple
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from utils import *

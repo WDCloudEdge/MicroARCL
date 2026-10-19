@@ -10,7 +10,7 @@ def get_anomaly_by_df(config, base_dir, file_dir, label, begin_timestamp, end_ti
                       lag_map=None):
     anomalies = []
     anomaly_time_series = {}
-    # B.1: align lagged metrics onto the QPS/causal timeline before Birch
+    # align lagged metrics onto the QPS/causal timeline before Birch
     from lag_align import align_call_metrics_df, align_metrics_df
 
     def _al(df):

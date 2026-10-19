@@ -22,7 +22,7 @@ _DATASET = _pre.parse_known_args()[0].dataset
 os.environ['AGENT_DATASET'] = _DATASET
 
 from Config import Config                       # noqa: E402
-from run_all_abnormal import parse_labels        # noqa: E402
+from eval_utils import parse_labels        # noqa: E402
 from baseline_common import _prep, _discover     # noqa: E402
 from reliability_fusion import _read_services     # noqa: E402
 
@@ -202,7 +202,7 @@ def main():
     ap.add_argument('--dataset', choices=('MDOC', 'MARBLEBench'),
                     default='MDOC')
     ap.add_argument('--align', action='store_true',
-                    help='apply B.1 lag alignment in _prep (sensitivity)')
+                    help='apply lag alignment in _prep (sensitivity)')
     args = ap.parse_args()
     print(f'Common-mode diagnostic on {args.dataset}  align={args.align}\n')
     df = _run(args.align)

@@ -1,4 +1,5 @@
-"""Initial end-to-end driver for agent-service root cause localization."""
+"""Agent-service RCA core: label-free adaptive anomaly window, KPI loading, and
+reliability-weighted severity ranking of candidate services."""
 import os
 import re
 import numpy as np
@@ -142,11 +143,11 @@ def _latency_active_ts(lat, cfg):
 
 def adaptive_window(sr: pd.DataFrame, cfg, metrics_dir=None, latency=None,
                     lag_map=None):
-    """Module B.0 (label-free): outer anomaly window.
+    """Label-free outer anomaly window.
 
     The window is the union of raw success-rate failures and aligned latency /
     CPU / memory spikes. This puts every lagged metric on the same causal
-    timeline later consumed by severity and the GNN.
+    timeline later consumed by severity ranking.
     """
     svc_cols = [c for c in sr.columns if c != 'timestamp']
     fail_ind = (sr[svc_cols] < 1.0).sum(axis=1)          # count of failing svcs
@@ -168,7 +169,7 @@ def adaptive_window(sr: pd.DataFrame, cfg, metrics_dir=None, latency=None,
     onset, last = min(active_ts), max(active_ts)
     start = max(sr['timestamp'].iloc[0], onset - guard)
     end = min(sr['timestamp'].iloc[-1], last + guard)
-    print(f'[B.0] window source: {src}')
+    print(f'[window] source: {src}')
     return start, end, fail_ind
 
 
@@ -317,9 +318,9 @@ def rank_anomalous_services(sr, lat, qps, start, end, metrics_dir=None,
             continue
         severity = (fail_rate + latency_term + w_res * res_term
                     + w_qps * qps_term)
-        # Preserve every detected anomaly dimension for Module C.  A service
-        # can simultaneously exhibit availability, latency and resource
-        # anomalies; reducing them to a single max would discard valid causes.
+        # Preserve every detected anomaly dimension.  A service can
+        # simultaneously exhibit availability, latency and resource anomalies;
+        # reducing them to a single max would discard valid causes.
         type_scores = {}
         if fail_rate > 0:
             type_scores['availability'] = fail_rate
@@ -355,7 +356,7 @@ def rank_anomalous_services(sr, lat, qps, start, end, metrics_dir=None,
 
 
 def _node_to_service(node: str) -> str:
-    """Map a GNN node name (svc / pod / physical node) back to a metric
+    """Map a graph node name (svc / pod / physical node) back to a metric
     service name for comparison with the severity ranking."""
     if node.startswith('node-'):
         return node
@@ -370,18 +371,6 @@ def _node_to_service(node: str) -> str:
         return node[:m.start()]
     return node
 
-def _infer_evaluation_root_cause(sample, services):
-    """Infer benchmark ground truth from the sample directory name.
-
-    This is evaluation-only metadata and is never fed into detection, ranking,
-    candidate selection, or the LLM prompt.
-    """
-    sample_name = os.path.basename(os.path.normpath(sample))
-    candidates = sorted(set(services), key=len, reverse=True)
-    return next((svc for svc in candidates
-                 if sample_name == svc or sample_name.startswith(svc + '_')),
-                None)
-
 
 def _service_rank(order, target):
     """One-based rank after normalizing/deduplicating service names; 0=miss."""
@@ -393,23 +382,3 @@ def _service_rank(order, target):
         if service not in seen:
             seen.append(service)
     return seen.index(target) + 1 if target in seen else 0
-
-
-def _write_sample_timing_log(sample, gnn_log_path, timestamp,
-                             timing_seconds):
-    """Persist completed-sample timings immediately in the sample directory."""
-    if gnn_log_path and os.path.exists(gnn_log_path):
-        log_path = gnn_log_path
-    else:
-        log_path = os.path.join(sample, f'sample-agent_rca_{timestamp}.log')
-    from datetime import datetime
-    with open(log_path, 'a', encoding='utf-8') as sample_log:
-        print('\n===== Agent RCA stage timing =====', file=sample_log)
-        print(f'sample: {sample}', file=sample_log)
-        print(f'completed_at: '
-              f'{datetime.now().astimezone().isoformat(timespec="seconds")}',
-              file=sample_log)
-        for stage in ('severity', 'gnn', 'llm', 'total'):
-            print(f'{stage}: {timing_seconds.get(stage, 0.0):.3f}s',
-                  file=sample_log)
-    return log_path

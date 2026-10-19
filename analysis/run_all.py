@@ -34,17 +34,17 @@ def main():
     multi_replica_recheck.main()
 
     print("=" * 70, "\n[RQ2 1/3] common-mode diffusion "
-          "(eta, rho_bar, severity CV, >=root count) -- S5.2.1")
+          "(eta, rho_bar, severity CV, >=root count)")
     _rq2("diag_common_mode.py", "--dataset", "MDOC")
     _rq2("diag_common_mode.py", "--dataset", "MARBLEBench")
 
     print("=" * 70, "\n[RQ2 2/3] flattened temporal ordering "
-          "(onset order, lag=0) -- S5.2.2")
+          "(onset order, lag=0)")
     _rq2("diag_temporal.py", "--dataset", "MARBLEBench", "--from", "fault")
     _rq2("diag_temporal.py", "--dataset", "MDOC", "--loads", "load-5")
 
     print("=" * 70, "\n[RQ2 3/3] spatial predictability + execution-lag by depth "
-          "(ridge lift, cumulative time) -- S5.2.2")
+          "(ridge lift, cumulative time)")
     _rq2("prepare_spatial_lag.py")
     _rq2("plot_spatial_lag.py")
 

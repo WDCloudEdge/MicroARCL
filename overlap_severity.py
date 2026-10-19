@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.cluster import Birch
 from sklearn.metrics import pairwise_distances
 
-from run_agent_rca import (_outside_baseline, _sustained_baseline_deviation,
+from agent_rca import (_outside_baseline, _sustained_baseline_deviation,
                            _sustain_mask)
 from lag_align import align_metrics_df
 

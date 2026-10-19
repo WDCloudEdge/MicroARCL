@@ -119,7 +119,7 @@ def compute_chain_lags(metrics_dir: str, ns_dir: str, cfg
         print(f'[lag_align] cannot read qps for chain lag: {e}')
         return {}
     import json
-    from agent_gnn import _read_services
+    from graph_utils import _read_services
     from execution_graph import group_to_service
     cc_path = os.path.join(ns_dir, 'graph', 'call_chains.json')
     if not os.path.exists(cc_path):
