@@ -709,7 +709,7 @@ spec:
         - name: OPENAI_API_KEY
           value: $OPENAI_API_KEY$
         - name: OPENAI_MODEL
-          value: qwen-long-latest
+          value: qwen-long
         - name: OPENAI_API_BASE_ROUTE_KEY
           value: $OPENAI_API_KEY$
         - name: OPENAI_API_BASE_ROUTE_MODEL
